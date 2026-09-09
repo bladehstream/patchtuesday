@@ -27,7 +27,7 @@ async function loadPublishedMonths() {
     select.value = preferred.file;
     $("load-published").disabled = false;
     const dataset = await fetch(`./data/${preferred.file}`, { cache: "no-store" });
-    if (dataset.ok) await loadText(await dataset.text(), preferred.label || preferred.month);
+    if (dataset.ok) await loadText(await dataset.text());
   }
 }
 
@@ -75,10 +75,25 @@ function renderProductFilters() {
   container.classList.toggle("muted-copy", tags.length === 0);
   container.innerHTML = tags.length ? tags.map(tag => `
     <label><input type="checkbox" value="${escapeHtml(tag)}" /><span>${escapeHtml(tag)}</span></label>`).join("") : "No product tags in this dataset.";
+  updateProductSummary();
   container.onchange = () => {
     state.selectedProducts = checkedValues("product-filters");
+    updateProductSummary();
     render();
   };
+}
+
+function updateProductSummary() {
+  const summary = $("product-summary");
+  if (!summary) return;
+  const selected = [...state.selectedProducts];
+  if (!selected.length) {
+    summary.textContent = "All products and workloads";
+  } else if (selected.length === 1) {
+    summary.textContent = selected[0];
+  } else {
+    summary.textContent = `${selected.length} products and workloads selected`;
+  }
 }
 
 function filteredRecords() {
@@ -164,15 +179,14 @@ function renderDetail() {
 function catalogName(id) { return state.catalog.find(item => item.id === id)?.name || id; }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]); }
 
-async function loadText(text, label) {
+async function loadText(text) {
   try {
     state.records = parseJsonl(text);
     state.selectedProducts.clear();
     state.selectedCve = state.records[0]?.cve || null;
     renderProductFilters();
     const month = state.records[0]?.month || "unknown";
-    const reviewed = state.records.filter(record => record.inference?.review_status === "reviewed" || record.inference?.model?.includes("luna")).length;
-    $("dataset-meta").textContent = `${month} · ${state.records.length} records · ${reviewed} inference-reviewed · ${label}`;
+    $("dataset-meta").textContent = `${month} · ${state.records.length} records`;
     render();
   } catch (error) {
     $("status").textContent = error.message;
@@ -181,11 +195,11 @@ async function loadText(text, label) {
 
 $("jsonl-file").addEventListener("change", async event => {
   const file = event.target.files[0];
-  if (file) await loadText(await file.text(), file.name);
+  if (file) await loadText(await file.text());
 });
 $("load-demo").addEventListener("click", async () => {
   const response = await fetch("./data/demo-2026-Sep.jsonl");
-  await loadText(await response.text(), "synthetic demonstration data");
+  await loadText(await response.text());
 });
 $("published-month").addEventListener("change", event => { $("load-published").disabled = !event.target.value; });
 $("load-published").addEventListener("click", async () => {
@@ -193,7 +207,7 @@ $("load-published").addEventListener("click", async () => {
   if (!select.value) return;
   const response = await fetch(`./data/${select.value}`, { cache: "no-store" });
   if (!response.ok) { $("status").textContent = `Could not load ${select.value}.`; return; }
-  await loadText(await response.text(), select.options[select.selectedIndex].textContent);
+  await loadText(await response.text());
 });
 $("export-jsonl").addEventListener("click", () => {
   const assessed = state.records.map(record => ({ ...record, assessment: { assessed_at: new Date().toISOString(), selected_mitigations: [...state.selectedMitigations], profile: predictProfile(record, state.selectedMitigations) } }));
@@ -209,6 +223,7 @@ $("clear-filters").addEventListener("click", () => {
   document.querySelectorAll("#product-filters input, #mitigation-filters input, #filter-exploited, #filter-likely").forEach(input => { input.checked = false; });
   document.querySelectorAll("#severity-filters input, #vector-filters input").forEach(input => { input.checked = true; });
   state.selectedProducts.clear();
+  updateProductSummary();
   state.selectedMitigations.clear();
   updateMitigationSummary();
   state.searchQuery = "";
@@ -216,8 +231,10 @@ $("clear-filters").addEventListener("click", () => {
   render();
 });
 document.addEventListener("click", event => {
-  const select = $("mitigation-select");
-  if (select?.open && !select.contains(event.target)) select.open = false;
+  for (const id of ["product-select", "mitigation-select"]) {
+    const select = $(id);
+    if (select?.open && !select.contains(event.target)) select.open = false;
+  }
 });
 for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely"]) $(id).addEventListener("change", render);
 $("smart-search-form").addEventListener("submit", event => event.preventDefault());
