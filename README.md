@@ -39,6 +39,17 @@ Cloudflare Pages settings:
 
 When Cloudflare Pages is connected to a private GitHub repository, a push to the configured production branch triggers the build automatically. Run fetching and inference locally, commit only the validated monthly JSONL and source changes, then push. The raw download and temporary working directories are ignored by Git.
 
+## Refresh EPSS without rerunning inference
+
+New CVEs are not always present in FIRST's daily EPSS population immediately. Refresh scores independently:
+
+```powershell
+python scripts/refresh_epss.py --data-dir data
+npm run build
+```
+
+The refresher downloads FIRST's complete daily CSV and then batch-queries the official API for target CVEs still absent from that file. Missing values remain `pending`; existing values are never converted to zero. A scheduled GitHub workflow runs this check daily and commits only when published EPSS fields change. Cloudflare Pages then rebuilds from that commit.
+
 ## Risk adjustment contract
 
 - Microsoft's Exploitability Index directly sets the baseline likelihood: Detected maps to Active, More Likely to Elevated, Less Likely to Plausible, and Unlikely to Low Evidence.
@@ -59,6 +70,7 @@ node tests/engine.test.mjs
 node tests/september_record.test.mjs
 python tests/test_enrich_cvrf.py
 python tests/test_merge_inference.py
+python tests/test_refresh_epss.py
 ```
 
 The demonstration JSONL contains synthetic records and must not be treated as Microsoft advisory data.
