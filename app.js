@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, parseJsonl, predictProfile } from "./engine.js";
+import { ACTIONS, exportJsonl, formatEpss, parseJsonl, predictProfile } from "./engine.js";
 
 const state = { records: [], catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null };
 const $ = id => document.getElementById(id);
@@ -90,7 +90,7 @@ function render() {
       <td><span class="cve-id">${escapeHtml(record.cve)}</span></td>
       <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)}</span></td>
       <td><div class="tag-list">${record.tags.slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
-      <td>${record.threat.kev ? "KEV" : record.threat.exploitation_detected ? "Detected" : escapeHtml(record.threat.exploitation_assessment || "No current evidence")}<span class="secondary-line">EPSS ${formatPercent(record.threat.epss)}</span></td>
+      <td>${record.threat.kev ? "KEV" : record.threat.exploitation_detected ? "Detected" : escapeHtml(record.threat.exploitation_assessment || "No current evidence")}<span class="secondary-line">EPSS ${formatEpss(record.threat.epss)}</span></td>
       <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(profile.baseline.action)}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
       <td><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span><span class="secondary-line">${escapeHtml(profile.residual.likelihood)}</span>${changed ? `<span class="change-note">Adjusted by verified relevant controls</span>` : ""}</td>
     </tr>`;
@@ -103,7 +103,9 @@ function render() {
   $("scheduled-count").textContent = profiles.filter(p => p.residual.action === "Scheduled").length;
   $("empty-state").hidden = records.length > 0;
   $("empty-state").textContent = state.records.length ? "No vulnerabilities match the selected criteria." : "No records loaded.";
-  $("status").textContent = state.records.length ? `${records.length} of ${state.records.length} records match. ${state.selectedMitigations.size} verified mitigation selections are active.` : "Import an enriched monthly JSONL file or load the synthetic demo.";
+  const scoredEpss = records.filter(record => record.threat.epss !== null && record.threat.epss !== undefined && Number.isFinite(Number(record.threat.epss))).length;
+  const epssStatus = records.length ? `EPSS is available for ${scoredEpss} of ${records.length}; newly published CVEs remain marked not yet scored.` : "";
+  $("status").textContent = state.records.length ? `${records.length} of ${state.records.length} records match. ${state.selectedMitigations.size} verified mitigation selections are active. ${epssStatus}` : "Import an enriched monthly JSONL file or load the synthetic demo.";
   $("export-jsonl").disabled = state.records.length === 0;
 
   for (const row of body.querySelectorAll("tr")) {
@@ -134,7 +136,6 @@ function renderDetail() {
 }
 
 function catalogName(id) { return state.catalog.find(item => item.id === id)?.name || id; }
-function formatPercent(value) { return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "n.a."; }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]); }
 
 async function loadText(text, label) {

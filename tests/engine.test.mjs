@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseJsonl, predictProfile } from "../engine.js";
+import { formatEpss, parseJsonl, predictProfile } from "../engine.js";
 
 const active = parseJsonl(JSON.stringify({
   month: "2026-Sep", cve: "CVE-TEST-1", severity: "Critical", tags: ["server"],
@@ -19,5 +19,9 @@ assert.equal(localProfile.baseline.action, localProfile.residual.action, "An irr
 const noAction = { ...active, cve: "CVE-TEST-3", customer_action_required: false };
 const noActionProfile = predictProfile(noAction, new Set());
 assert.equal(noActionProfile.residual.action, "Defer and review", "Microsoft no-action records do not create patch work");
+
+assert.equal(formatEpss(null), "Not yet scored");
+assert.equal(formatEpss(0.00623), "0.62%");
+assert.equal(formatEpss(0), "0.00%");
 
 console.log("engine tests passed");

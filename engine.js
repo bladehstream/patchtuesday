@@ -129,3 +129,13 @@ export function parseJsonl(text) {
 export function exportJsonl(records) {
   return records.map(record => JSON.stringify(record)).join("\n") + "\n";
 }
+
+export function formatEpss(value) {
+  if (value === null || value === undefined || value === "") return "Not yet scored";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Not yet scored";
+  const percent = numeric * 100;
+  if (percent > 0 && percent < 0.01) return "<0.01%";
+  if (percent < 1) return `${percent.toFixed(2)}%`;
+  return `${percent.toFixed(1)}%`;
+}
