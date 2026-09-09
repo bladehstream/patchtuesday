@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { formatEpss, parseJsonl, predictProfile } from "../engine.js";
+import { formatEpss, formatMicrosoftAssessment, parseJsonl, predictProfile } from "../engine.js";
 
 const active = parseJsonl(JSON.stringify({
   month: "2026-Sep", cve: "CVE-TEST-1", severity: "Critical", tags: ["server"],
@@ -23,5 +23,23 @@ assert.equal(noActionProfile.residual.action, "Defer and review", "Microsoft no-
 assert.equal(formatEpss(null), "Not yet scored");
 assert.equal(formatEpss(0.00623), "0.62%");
 assert.equal(formatEpss(0), "0.00%");
+assert.equal(formatMicrosoftAssessment("unlikely"), "Unlikely");
+assert.equal(formatMicrosoftAssessment("unknown"), "Not published");
+
+const unlikelyCritical = {
+  ...active,
+  cve: "CVE-TEST-4",
+  threat: { kev: false, exploitation_detected: false, exploitation_assessment: "unlikely", epss: null },
+};
+const unlikelyProfile = predictProfile(unlikelyCritical, new Set());
+assert.equal(unlikelyProfile.baseline.likelihood, "Low evidence");
+assert.equal(unlikelyProfile.baseline.action, "Out-of-cycle");
+
+const moreLikely = {
+  ...unlikelyCritical,
+  cve: "CVE-TEST-5",
+  threat: { kev: false, exploitation_detected: false, exploitation_assessment: "more-likely", epss: null },
+};
+assert.equal(predictProfile(moreLikely, new Set()).baseline.likelihood, "Elevated");
 
 console.log("engine tests passed");

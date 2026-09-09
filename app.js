@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, parseJsonl, predictProfile } from "./engine.js";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, parseJsonl, predictProfile } from "./engine.js";
 
 const state = { records: [], catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null };
 const $ = id => document.getElementById(id);
@@ -90,7 +90,7 @@ function render() {
       <td><span class="cve-id">${escapeHtml(record.cve)}</span></td>
       <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)}</span></td>
       <td><div class="tag-list">${record.tags.slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
-      <td>${record.threat.kev ? "KEV" : record.threat.exploitation_detected ? "Detected" : escapeHtml(record.threat.exploitation_assessment || "No current evidence")}<span class="secondary-line">EPSS ${formatEpss(record.threat.epss)}</span></td>
+      <td><span class="threat-line">Microsoft: ${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</span><span class="secondary-line">CVSS ${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</span><span class="secondary-line">EPSS ${formatEpss(record.threat.epss)}</span>${record.threat.kev ? `<span class="kev-line">CISA KEV listed</span>` : ""}</td>
       <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(profile.baseline.action)}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
       <td><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span><span class="secondary-line">${escapeHtml(profile.residual.likelihood)}</span>${changed ? `<span class="change-note">Adjusted by verified relevant controls</span>` : ""}</td>
     </tr>`;

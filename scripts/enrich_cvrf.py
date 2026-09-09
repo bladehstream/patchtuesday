@@ -123,6 +123,19 @@ def normalize_severity(value: str, base_score: float) -> str:
     return "Low"
 
 
+def exploitation_assessment(value: str) -> str:
+    lowered = value.lower()
+    if "exploitation detected" in lowered or "exploited:yes" in lowered:
+        return "detected"
+    if "exploitation more likely" in lowered:
+        return "more-likely"
+    if "exploitation less likely" in lowered:
+        return "less-likely"
+    if "exploitation unlikely" in lowered:
+        return "unlikely"
+    return "unknown"
+
+
 def load_inference(path: Path | None) -> dict[str, dict[str, Any]]:
     if not path:
         return {}
@@ -184,6 +197,7 @@ def build_records(
         products = [{"product_id": item, "name": product_map.get(item, item)} for item in sorted(ids)]
         cvss = best_cvss(vuln)
         score = float(cvss.get("BaseScore") or 0)
+        temporal_score = cvss.get("TemporalScore")
         vector = str(cvss.get("Vector") or "")
         severity_text = threat_description(vuln, "3") or threat_description(vuln, "Severity")
         exploit_text = " ".join(text_value(v) for v in as_list(vuln.get("Notes"))) + " " + threat_description(vuln, "1")
@@ -213,13 +227,19 @@ def build_records(
             "title": title,
             "severity": normalize_severity(severity_text, score),
             "customer_action_required": customer_action_required,
+            "cvss": {
+                "base_score": score or None,
+                "temporal_score": float(temporal_score) if temporal_score is not None else None,
+                "vector": vector or None,
+                "version": "4.0" if vector.startswith("CVSS:4.0") else "3.1" if vector.startswith("CVSS:3.1") else "3.0" if vector.startswith("CVSS:3.0") else "unknown",
+            },
             "products": products,
             "tags": tags,
             "attack": vector_fields(vector),
             "threat": {
                 "kev": cve in kev,
                 "exploitation_detected": "exploitation detected" in exploit_text.lower(),
-                "exploitation_assessment": "more-likely" if "more likely" in exploit_text.lower() else "less-likely" if "less likely" in exploit_text.lower() else "unknown",
+                "exploitation_assessment": exploitation_assessment(exploit_text),
                 "epss": epss.get(cve),
             },
             "mitigation_candidates": as_list(overlay.get("mitigation_candidates")),

@@ -15,7 +15,10 @@ def test_build_records_maps_product_and_vector():
             "CVE": "CVE-TEST-1",
             "Title": {"Value": "Windows DNS Server test vulnerability"},
             "ProductStatuses": [{"Status": "Known Affected", "ProductID": ["p1"]}],
-            "Threats": [{"Type": "3", "Description": {"Value": "Critical"}}],
+            "Threats": [
+                {"Type": "3", "Description": {"Value": "Critical"}},
+                {"Type": "1", "Description": {"Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Unlikely"}},
+            ],
             "CVSSScoreSets": [{"BaseScore": 9.8, "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}],
         }],
     }
@@ -26,6 +29,8 @@ def test_build_records_maps_product_and_vector():
     assert records[0]["attack"]["vector"] == "network"
     assert records[0]["severity"] == "Critical"
     assert records[0]["products"][0]["product_id"] == "p1"
+    assert records[0]["threat"]["exploitation_assessment"] == "unlikely"
+    assert records[0]["cvss"]["base_score"] == 9.8
 
 
 if __name__ == "__main__":

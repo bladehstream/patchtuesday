@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { parseJsonl, predictProfile } from "../engine.js";
+
+const records = parseJsonl(fs.readFileSync(new URL("../data/2026-Sep.jsonl", import.meta.url), "utf8"));
+const record = records.find(item => item.cve === "CVE-2026-69829");
+assert.ok(record, "CVE-2026-69829 must remain in the curated September dataset");
+assert.equal(record.threat.exploitation_assessment, "unlikely");
+assert.equal(record.cvss.base_score, 9.8);
+assert.equal(record.attack.vector, "network");
+assert.equal(record.attack.privileges_required, "none");
+assert.equal(record.attack.user_interaction, "none");
+const baseline = predictProfile(record, new Set()).baseline;
+assert.equal(baseline.likelihood, "Low evidence");
+assert.equal(baseline.action, "Out-of-cycle");
+assert.ok(record.mitigation_candidates.some(item => item.id === "segmentation_acl"));
+assert.ok(!record.mitigation_candidates.some(item => item.id === "email_web_filtering"));
+console.log("September CVE regression test passed");

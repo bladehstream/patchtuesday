@@ -55,6 +55,42 @@ def validate_candidate(candidate: dict, allowed: set[str], cve: str) -> None:
         raise ValueError(f"{cve}: evidence is required for {mitigation_id}")
 
 
+def validate_cvss_basis(overlay: dict, baseline: dict) -> None:
+    cve = baseline["cve"]
+    basis = overlay.get("cvss_basis")
+    if not isinstance(basis, dict):
+        raise ValueError(f"{cve}: cvss_basis is required")
+    expected = {
+        "base_score": baseline.get("cvss", {}).get("base_score"),
+        "vector": baseline.get("cvss", {}).get("vector"),
+        "attack_vector": baseline.get("attack", {}).get("vector"),
+        "privileges_required": baseline.get("attack", {}).get("privileges_required"),
+        "user_interaction": baseline.get("attack", {}).get("user_interaction"),
+    }
+    if basis != expected:
+        raise ValueError(f"{cve}: cvss_basis does not match normalized MSRC data")
+
+
+def validate_path_compatibility(overlay: dict, baseline: dict) -> None:
+    cve = baseline["cve"]
+    vector = baseline.get("attack", {}).get("vector")
+    privileges = baseline.get("attack", {}).get("privileges_required")
+    tags = set(overlay.get("tags") or [])
+    for candidate in overlay.get("mitigation_candidates") or []:
+        mitigation_id = candidate["id"]
+        likelihood_credit = (candidate.get("effect") or {}).get("likelihood_steps", 0)
+        if not likelihood_credit:
+            continue
+        if mitigation_id in {"remove_external_exposure", "segmentation_acl", "exploit_specific_ips", "waf_virtual_patch"} and vector not in {"network", "adjacent"}:
+            raise ValueError(f"{cve}: {mitigation_id} cannot reduce likelihood for attack vector {vector}")
+        if mitigation_id in {"email_web_filtering", "office_protected_view"} and "user-content" not in tags:
+            raise ValueError(f"{cve}: {mitigation_id} requires an evidence-backed user-content tag")
+        if mitigation_id in {"strong_authentication", "least_privilege_pam"} and privileges not in {"low", "high"}:
+            raise ValueError(f"{cve}: {mitigation_id} cannot reduce likelihood when privileges required is {privileges}")
+        if mitigation_id in {"edr_detection_response", "immutable_backups"}:
+            raise ValueError(f"{cve}: {mitigation_id} cannot reduce exploit likelihood")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", required=True, type=Path)
@@ -76,6 +112,7 @@ def main() -> None:
         if cve in seen:
             raise ValueError(f"Duplicate inference CVE: {cve}")
         seen.add(cve)
+        validate_cvss_basis(overlay, baseline[cve])
         inferred_tags = set(overlay.get("tags") or [])
         unknown_tags = inferred_tags - tags_allowed
         if unknown_tags:
@@ -83,6 +120,7 @@ def main() -> None:
         candidates = overlay.get("mitigation_candidates") or []
         for candidate in candidates:
             validate_candidate(candidate, mitigations_allowed, cve)
+        validate_path_compatibility(overlay, baseline[cve])
         record = baseline[cve]
         record["tags"] = sorted(set(record.get("tags") or []) | inferred_tags)
         record["mitigation_candidates"] = candidates

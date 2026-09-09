@@ -41,6 +41,10 @@ When Cloudflare Pages is connected to a private GitHub repository, a push to the
 
 ## Risk adjustment contract
 
+- Microsoft's Exploitability Index directly sets the baseline likelihood: Detected maps to Active, More Likely to Elevated, Less Likely to Plausible, and Unlikely to Low Evidence.
+- CISA KEV or Microsoft-confirmed exploitation overrides the baseline likelihood to Active.
+- EPSS contributes independent forecast evidence when a score is available.
+- CVSS severity, attack vector, privileges and user interaction determine technical consequence and patch cadence; they do not overwrite the Microsoft likelihood label.
 - Only mitigations marked relevant by the monthly inference record receive credit.
 - Low-confidence and not-relevant mitigations receive no credit.
 - Ordinary controls can reduce predicted likelihood by at most one band.
@@ -52,7 +56,9 @@ When Cloudflare Pages is connected to a private GitHub repository, a push to the
 
 ```powershell
 node tests/engine.test.mjs
+node tests/september_record.test.mjs
 python tests/test_enrich_cvrf.py
+python tests/test_merge_inference.py
 ```
 
 The demonstration JSONL contains synthetic records and must not be treated as Microsoft advisory data.

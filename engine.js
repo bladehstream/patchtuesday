@@ -7,9 +7,16 @@ export function baselineProfile(record) {
   const threat = record.threat || {};
   const vector = (record.attack || {}).vector || "unknown";
   const severity = severityRank[record.severity] || 1;
-  let likelihood = 1;
+  const microsoftLikelihood = {
+    detected: 3,
+    "more-likely": 2,
+    "less-likely": 1,
+    unlikely: 0,
+    unknown: 1,
+  }[threat.exploitation_assessment] ?? 1;
+  let likelihood = microsoftLikelihood;
   let action = 1;
-  const reasons = [];
+  const reasons = [`Microsoft exploitation assessment: ${formatMicrosoftAssessment(threat.exploitation_assessment)}`];
 
   if (record.customer_action_required === false) {
     return { likelihood: 0, action: 0, reasons: ["Microsoft states that no customer action is required"] };
@@ -19,22 +26,26 @@ export function baselineProfile(record) {
     likelihood = 3;
     action = 3;
     reasons.push(threat.kev ? "CISA KEV" : "Microsoft exploitation detected");
-  } else if (threat.exploitation_assessment === "more-likely") {
-    likelihood = 2;
-    action = vector === "network" || severity === 4 ? 2 : 1;
-    reasons.push("Microsoft rates exploitation more likely");
-  } else if ((threat.epss || 0) >= 0.1) {
-    likelihood = 2;
-    action = severity >= 3 ? 2 : 1;
-    reasons.push("Elevated EPSS forecast");
-  } else if (severity === 4) {
-    likelihood = 1;
+  }
+
+  if ((threat.epss || 0) >= 0.1) {
+    likelihood = Math.max(likelihood, 2);
+    reasons.push("EPSS provides elevated exploitation evidence");
+  } else if ((threat.epss || 0) >= 0.01) {
+    likelihood = Math.max(likelihood, 1);
+    reasons.push("EPSS provides additional exploitation evidence");
+  }
+
+  if (action < 3 && severity === 4) {
     action = 2;
     reasons.push("Critical technical severity");
+  } else if (action < 3 && likelihood >= 2 && severity >= 3) {
+    action = 2;
+    reasons.push("Elevated exploitation likelihood and high technical severity");
   } else if (severity <= 2) {
     action = 1;
     reasons.push("No current high-confidence exploitation evidence");
-  } else {
+  } else if (action < 2) {
     reasons.push("Important severity requires scheduled remediation");
   }
 
@@ -107,6 +118,7 @@ export function normalizeRecord(record) {
     title: record.title || "Untitled vulnerability",
     severity: record.severity || "Low",
     customer_action_required: record.customer_action_required ?? null,
+    cvss: record.cvss || { base_score: null, temporal_score: null, vector: null, version: "unknown" },
     products: Array.isArray(record.products) ? record.products : [],
     tags: Array.isArray(record.tags) ? record.tags : [],
     attack: record.attack || { vector: "unknown", privileges_required: "unknown", user_interaction: "unknown" },
@@ -138,4 +150,14 @@ export function formatEpss(value) {
   if (percent > 0 && percent < 0.01) return "<0.01%";
   if (percent < 1) return `${percent.toFixed(2)}%`;
   return `${percent.toFixed(1)}%`;
+}
+
+export function formatMicrosoftAssessment(value) {
+  return ({
+    detected: "Detected",
+    "more-likely": "More likely",
+    "less-likely": "Less likely",
+    unlikely: "Unlikely",
+    unknown: "Not published",
+  })[value] || "Not published";
 }
