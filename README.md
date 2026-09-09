@@ -15,7 +15,7 @@ Open `http://localhost:4173` and load the synthetic demonstration month or impor
 ```powershell
 python scripts/fetch_sources.py --month 2026-Sep --output-dir raw
 python scripts/enrich_cvrf.py --cvrf raw/2026-Sep.json --month 2026-Sep --kev raw/known_exploited_vulnerabilities.json --epss raw/epss_scores-current.csv --fetch-metadata raw/2026-Sep-fetch-metadata.json --output work/2026-Sep-baseline.jsonl
-python scripts/merge_inference.py --baseline work/2026-Sep-baseline.jsonl --inference inference/2026-Sep-luna.jsonl --output work/2026-Sep-curated.jsonl
+python scripts/merge_inference.py --baseline work/2026-Sep-baseline.jsonl --inference inference/2026-Sep-luna.jsonl --include-unreviewed --output work/2026-Sep-curated.jsonl
 ```
 
 The fetcher retrieves the complete MSRC CVRF release, CISA KEV catalogue and FIRST EPSS daily CSV directly from their public endpoints. It records URLs, retrieval time, sizes and SHA-256 hashes. The CVRF parser preserves Microsoft facts and adds deterministic baseline tags. The inference JSONL supplies only curated workload tags and mitigation candidates that follow `prompts/enrichment-system.md`. The merge step rejects unknown CVEs, tags, mitigation IDs, unsupported effect values and unjustified path-block claims.

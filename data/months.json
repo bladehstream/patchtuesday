@@ -8,9 +8,9 @@
   },
   {
     "month": "2026-Sep",
-    "label": "September 2026 curated demo",
+    "label": "September 2026 full release",
     "file": "2026-Sep.jsonl",
-    "record_count": 25,
-    "published_at": "2026-09-09T12:46:36.821366+00:00"
+    "record_count": 1185,
+    "published_at": "2026-09-09T13:58:25.598287+00:00"
   }
 ]

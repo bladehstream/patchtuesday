@@ -50,7 +50,8 @@ function renderMitigations() {
 }
 
 function productTags() {
-  return [...new Set(state.records.flatMap(record => record.tags).filter(tag => /^(windows|server|office|sharepoint|dns|dhcp|identity|hyper-v|print|endpoint)/.test(tag)))].sort();
+  const excluded = new Set(["microsoft", "remote-code-execution", "elevation-of-privilege", "security-feature-bypass", "information-disclosure", "denial-of-service", "spoofing", "user-content"]);
+  return [...new Set(state.records.flatMap(record => record.tags).filter(tag => !excluded.has(tag)))].sort();
 }
 
 function renderProductFilters() {
@@ -119,7 +120,7 @@ function render() {
   $("export-jsonl").disabled = state.records.length === 0;
 
   for (const row of body.querySelectorAll("tr")) {
-    const select = () => { state.selectedCve = row.dataset.cve; render(); renderDetail(); };
+    const select = () => { state.selectedCve = row.dataset.cve; render(); };
     row.addEventListener("click", select);
     row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
   }
@@ -132,17 +133,28 @@ function renderDetail() {
   const profile = predictProfile(record, state.selectedMitigations);
   const relevant = record.mitigation_candidates.filter(item => item.relevance !== "not-relevant");
   $("detail-panel").innerHTML = `
-    <h2>${escapeHtml(record.cve)}</h2>
-    <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
-    <p>${escapeHtml(record.title)}</p>
-    <h3>Predicted profile</h3>
-    <p><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></p>
-    <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
-    <h3>Relevant mitigation inference</h3>
-    ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
-    <h3>Inference record</h3>
-    <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
-    ${record.source.url ? `<h3>Source</h3><a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(record.source.url)}</a>` : ""}`;
+    <div class="detail-grid">
+      <section class="detail-section">
+        <h2>${escapeHtml(record.cve)}</h2>
+        <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
+        <p>${escapeHtml(record.title)}</p>
+        <p><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></p>
+      </section>
+      <section class="detail-section">
+        <h3>Decision basis</h3>
+        <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+      </section>
+      <section class="detail-section">
+        <h3>Relevant mitigation inference</h3>
+        ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigation inference has been reviewed for this record.</p>`}
+      </section>
+      <section class="detail-section">
+        <h3>Record provenance</h3>
+        <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${escapeHtml(record.inference.review_status || "unreviewed")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
+        <p class="detail-meta">CVSS ${record.cvss.base_score ?? "not published"} · Microsoft ${formatMicrosoftAssessment(record.threat.exploitation_assessment)} · EPSS ${epssDisplay(record.threat)}</p>
+        ${record.source.url ? `<a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">Open Microsoft advisory</a>` : ""}
+      </section>
+    </div>`;
 }
 
 function catalogName(id) { return state.catalog.find(item => item.id === id)?.name || id; }
@@ -155,7 +167,8 @@ async function loadText(text, label) {
     state.selectedCve = state.records[0]?.cve || null;
     renderProductFilters();
     const month = state.records[0]?.month || "unknown";
-    $("dataset-meta").textContent = `${month} · ${state.records.length} enriched records · ${label}`;
+    const reviewed = state.records.filter(record => record.inference?.review_status === "reviewed" || record.inference?.model?.includes("luna")).length;
+    $("dataset-meta").textContent = `${month} · ${state.records.length} records · ${reviewed} inference-reviewed · ${label}`;
     render();
   } catch (error) {
     $("status").textContent = error.message;
@@ -196,6 +209,14 @@ $("clear-filters").addEventListener("click", () => {
   state.searchQuery = "";
   $("smart-search").value = "";
   render();
+});
+$("filter-toggle").addEventListener("click", event => {
+  const panel = $("filter-panel");
+  const collapsed = !panel.hidden;
+  panel.hidden = collapsed;
+  document.body.classList.toggle("filters-collapsed", collapsed);
+  event.currentTarget.setAttribute("aria-expanded", String(!collapsed));
+  event.currentTarget.textContent = collapsed ? "Show filters" : "Hide filters";
 });
 for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely"]) $(id).addEventListener("change", render);
 $("smart-search-form").addEventListener("submit", event => event.preventDefault());

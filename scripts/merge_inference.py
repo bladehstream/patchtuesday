@@ -98,6 +98,7 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--taxonomy", type=Path, default=ROOT / "data" / "tag-taxonomy.json")
     parser.add_argument("--mitigations", type=Path, default=ROOT / "data" / "mitigation-catalog.json")
+    parser.add_argument("--include-unreviewed", action="store_true", help="Include every baseline record, not only inference overlays")
     args = parser.parse_args()
 
     baseline = {item["cve"]: item for item in read_jsonl(args.baseline)}
@@ -125,7 +126,20 @@ def main() -> None:
         record["tags"] = sorted(set(record.get("tags") or []) | inferred_tags)
         record["mitigation_candidates"] = candidates
         record["inference"] = overlay.get("inference") or {}
+        record["inference"]["review_status"] = "reviewed"
         merged.append(record)
+
+    if args.include_unreviewed:
+        for cve, record in baseline.items():
+            if cve in seen:
+                continue
+            record["mitigation_candidates"] = []
+            record["inference"] = {
+                "model": "none",
+                "taxonomy_version": "1.0",
+                "review_status": "unreviewed",
+            }
+            merged.append(record)
 
     severity_order = {"Critical": 0, "Important": 1, "Moderate": 2, "Low": 3}
     merged.sort(key=lambda item: (
