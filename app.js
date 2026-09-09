@@ -1,6 +1,6 @@
 import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js";
 
-const state = { records: [], catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
+const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
 
 async function loadCatalog() {
@@ -123,6 +123,7 @@ function epssDisplay(threat) {
 function render() {
   const records = filteredRecords();
   const body = $("results-body");
+  if (!records.some(record => record.cve === state.selectedCve)) state.selectedCve = records[0]?.cve || null;
   body.innerHTML = records.map(record => {
     const profile = predictProfile(record, state.selectedMitigations);
     const changed = profile.baseline.action !== profile.residual.action || profile.baseline.likelihood !== profile.residual.likelihood;
@@ -149,17 +150,33 @@ function render() {
   $("status").textContent = state.records.length ? `${records.length} of ${state.records.length} records match.${searchStatus} ${state.selectedMitigations.size} verified mitigation selections are active. ${epssStatus}` : "Import an enriched monthly JSONL file or load the synthetic demo.";
   $("export-jsonl").disabled = state.records.length === 0;
 
-  for (const row of body.querySelectorAll("tr")) {
-    const select = () => { state.selectedCve = row.dataset.cve; render(); renderDetail(); };
-    row.addEventListener("click", select);
-    row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
-  }
+  const selectRow = row => {
+    const selected = body.querySelector('tr[aria-selected="true"]');
+    if (selected && selected !== row) selected.setAttribute("aria-selected", "false");
+    row.setAttribute("aria-selected", "true");
+    state.selectedCve = row.dataset.cve;
+    renderDetail();
+  };
+  body.onclick = event => {
+    const row = event.target.closest("tr[data-cve]");
+    if (row && body.contains(row)) selectRow(row);
+  };
+  body.onkeydown = event => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const row = event.target.closest("tr[data-cve]");
+    if (!row || !body.contains(row)) return;
+    event.preventDefault();
+    selectRow(row);
+  };
   if (state.selectedCve) renderDetail();
 }
 
 function renderDetail() {
-  const record = state.records.find(item => item.cve === state.selectedCve);
-  if (!record) return;
+  const record = state.recordByCve.get(state.selectedCve);
+  if (!record) {
+    $("detail-panel").innerHTML = `<p class="detail-placeholder">Select a vulnerability to inspect its evidence, applicable mitigations, and decision path.</p>`;
+    return;
+  }
   const profile = predictProfile(record, state.selectedMitigations);
   const relevant = record.mitigation_candidates.filter(item => item.relevance !== "not-relevant");
   $("detail-panel").innerHTML = `
@@ -182,6 +199,7 @@ function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, char 
 async function loadText(text) {
   try {
     state.records = parseJsonl(text);
+    state.recordByCve = new Map(state.records.map(record => [record.cve, record]));
     state.selectedProducts.clear();
     state.selectedCve = state.records[0]?.cve || null;
     renderProductFilters();

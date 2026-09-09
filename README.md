@@ -68,6 +68,7 @@ The refresher downloads FIRST's complete daily CSV and then batch-queries the of
 ```powershell
 node tests/engine.test.mjs
 node tests/september_record.test.mjs
+node tests/ui_performance.test.mjs
 python tests/test_enrich_cvrf.py
 python tests/test_merge_inference.py
 python tests/test_refresh_epss.py

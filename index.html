@@ -49,6 +49,17 @@
         </fieldset>
 
         <fieldset>
+          <legend>Verified mitigations</legend>
+          <p class="field-help">Selections only receive credit where the inference record marks them relevant to the exploit path.</p>
+          <details id="mitigation-select" class="multi-select">
+            <summary id="mitigation-summary">No mitigations selected</summary>
+            <div class="multi-select-menu">
+              <div id="mitigation-filters" class="choice-list muted-copy">Mitigation catalogue is loading.</div>
+            </div>
+          </details>
+        </fieldset>
+
+        <fieldset>
           <legend>Severity</legend>
           <div id="severity-filters" class="choice-list">
             <label><input type="checkbox" value="Critical" checked /> Critical</label>
@@ -77,16 +88,6 @@
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend>Verified mitigations</legend>
-          <p class="field-help">Selections only receive credit where the inference record marks them relevant to the exploit path.</p>
-          <details id="mitigation-select" class="multi-select">
-            <summary id="mitigation-summary">No mitigations selected</summary>
-            <div class="multi-select-menu">
-              <div id="mitigation-filters" class="choice-list muted-copy">Mitigation catalogue is loading.</div>
-            </div>
-          </details>
-        </fieldset>
       </aside>
 
       <section class="results-panel">
