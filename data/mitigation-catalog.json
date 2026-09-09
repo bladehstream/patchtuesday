@@ -1,0 +1,19 @@
+[
+  {"id":"remove_external_exposure","name":"Remove external exposure","category":"Network prevention","credit_rule":"Credit only when all public ingress paths to the vulnerable service are removed and verified."},
+  {"id":"segmentation_acl","name":"Segmentation and restrictive ACLs","category":"Network prevention","credit_rule":"Credit only when every relevant path, including lateral movement, is blocked and tested."},
+  {"id":"service_disabled_vendor_guidance","name":"Disable vulnerable service or feature","category":"Vendor-aligned prevention","credit_rule":"Strong credit requires vendor guidance and confirmation that the vulnerable path is unavailable."},
+  {"id":"vendor_workaround","name":"Apply vendor workaround","category":"Vendor-aligned prevention","credit_rule":"Strong credit requires the exact Microsoft workaround and validation after deployment."},
+  {"id":"exploit_specific_ips","name":"Exploit-specific IPS or NGFW rule","category":"Network prevention","credit_rule":"Credit requires a CVE-specific or exploit-specific signature in prevention mode with recent validation."},
+  {"id":"waf_virtual_patch","name":"WAF virtual patch","category":"Application prevention","credit_rule":"Credit requires coverage of the vulnerable route and a tested blocking rule."},
+  {"id":"protocol_hardening","name":"Protocol or feature hardening","category":"Configuration prevention","credit_rule":"Credit requires a setting that directly removes an exploit prerequisite."},
+  {"id":"strong_authentication","name":"Strong authentication and access restriction","category":"Identity prevention","credit_rule":"Credit only when authentication gates the vulnerable path and bypass routes are excluded."},
+  {"id":"least_privilege_pam","name":"Least privilege and privileged access management","category":"Identity containment","credit_rule":"Primarily reduces consequence unless the exploit requires privileges that have been removed."},
+  {"id":"application_control","name":"Application control or WDAC","category":"Execution containment","credit_rule":"Credit only when the inferred exploit chain depends on starting an untrusted executable or script."},
+  {"id":"attack_surface_reduction","name":"Attack surface reduction rules","category":"Execution prevention","credit_rule":"Credit requires a rule that maps to the inferred exploit technique and is enforced."},
+  {"id":"email_web_filtering","name":"Email and web content filtering","category":"Delivery prevention","credit_rule":"Credit applies to user-delivered content only when the relevant file or URL path is blocked."},
+  {"id":"office_protected_view","name":"Office Protected View and macro hardening","category":"Application prevention","credit_rule":"Credit applies only to Office exploit paths addressed by the configured policy."},
+  {"id":"edr_exploit_prevention","name":"EDR exploit-specific prevention","category":"Endpoint prevention","credit_rule":"Credit requires a tested prevention capability for the specific exploit behavior, not generic EDR presence."},
+  {"id":"edr_detection_response","name":"EDR detection and response coverage","category":"Detection and response","credit_rule":"No likelihood credit by default. This improves detection and response confidence."},
+  {"id":"immutable_backups","name":"Immutable and tested backups","category":"Recovery","credit_rule":"No likelihood credit. This may reduce availability consequences but not confidentiality or identity compromise."},
+  {"id":"isolation_airgap","name":"Strong isolation or offline enclave","category":"Network prevention","credit_rule":"Credit requires verified isolation of every relevant ingress and administration path."}
+]

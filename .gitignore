@@ -1,0 +1,11 @@
+dist/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.wrangler/
+raw/
+work/
+.DS_Store
+Thumbs.db

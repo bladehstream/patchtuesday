@@ -1,0 +1,10 @@
+{
+  "name": "patch-tuesday-triage",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python -m http.server 4173",
+    "build": "node scripts/build-pages.mjs",
+    "test": "node tests/engine.test.mjs"
+  }
+}

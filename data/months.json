@@ -1,0 +1,16 @@
+[
+  {
+    "month": "2026-Sep-demo",
+    "label": "September 2026 synthetic demo",
+    "file": "demo-2026-Sep.jsonl",
+    "record_count": 5,
+    "published_at": "2026-09-09T00:00:00Z"
+  },
+  {
+    "month": "2026-Sep",
+    "label": "September 2026 curated demo",
+    "file": "2026-Sep.jsonl",
+    "record_count": 25,
+    "published_at": "2026-09-09T12:23:39.145840+00:00"
+  }
+]

@@ -1,0 +1,58 @@
+# Patch Tuesday Triage
+
+A dependency-free local prototype for filtering inference-enriched Microsoft CVRF data and applying verified enterprise mitigations to an explainable predicted risk profile.
+
+## Run the interface
+
+```powershell
+python -m http.server 4173
+```
+
+Open `http://localhost:4173` and load the synthetic demonstration month or import a monthly JSONL file.
+
+## Produce a monthly JSONL file
+
+```powershell
+python scripts/fetch_sources.py --month 2026-Sep --output-dir raw
+python scripts/enrich_cvrf.py --cvrf raw/2026-Sep.json --month 2026-Sep --kev raw/known_exploited_vulnerabilities.json --epss raw/epss_scores-current.csv --fetch-metadata raw/2026-Sep-fetch-metadata.json --output work/2026-Sep-baseline.jsonl
+python scripts/merge_inference.py --baseline work/2026-Sep-baseline.jsonl --inference inference/2026-Sep-luna.jsonl --output work/2026-Sep-curated.jsonl
+```
+
+The fetcher retrieves the complete MSRC CVRF release, CISA KEV catalogue and FIRST EPSS daily CSV directly from their public endpoints. It records URLs, retrieval time, sizes and SHA-256 hashes. The CVRF parser preserves Microsoft facts and adds deterministic baseline tags. The inference JSONL supplies only curated workload tags and mitigation candidates that follow `prompts/enrichment-system.md`. The merge step rejects unknown CVEs, tags, mitigation IDs, unsupported effect values and unjustified path-block claims.
+
+## Publish an enriched month
+
+Run inference locally, merge its output with the CVRF normalizer, then add the finished month to the static site:
+
+```powershell
+python scripts/publish_month.py work/2026-Sep-curated.jsonl --month 2026-Sep --label "September 2026"
+npm run build
+```
+
+Deploy the generated `dist` directory to Cloudflare Pages. The site has no server functions, accounts, database, analytics, or remote API calls. Published JSONL files contain public advisory enrichment only. Environment filters and selected mitigations remain in browser memory unless the user explicitly exports an assessment.
+
+Cloudflare Pages settings:
+
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Root directory: the project root
+
+When Cloudflare Pages is connected to a private GitHub repository, a push to the configured production branch triggers the build automatically. Run fetching and inference locally, commit only the validated monthly JSONL and source changes, then push. The raw download and temporary working directories are ignored by Git.
+
+## Risk adjustment contract
+
+- Only mitigations marked relevant by the monthly inference record receive credit.
+- Low-confidence and not-relevant mitigations receive no credit.
+- Ordinary controls can reduce predicted likelihood by at most one band.
+- Two-band credit requires a high-confidence vendor workaround or exact service disablement.
+- Known exploitation enforces an Out-of-Cycle minimum even when strong mitigations are selected.
+- Generic EDR detection and backups receive no likelihood credit.
+
+## Tests
+
+```powershell
+node tests/engine.test.mjs
+python tests/test_enrich_cvrf.py
+```
+
+The demonstration JSONL contains synthetic records and must not be treated as Microsoft advisory data.
