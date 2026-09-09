@@ -1,6 +1,6 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, parseJsonl, predictProfile } from "./engine.js";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js";
 
-const state = { records: [], catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null };
+const state = { records: [], catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
 
 async function loadCatalog() {
@@ -69,6 +69,7 @@ function filteredRecords() {
   const severity = checkedValues("severity-filters");
   const vectors = checkedValues("vector-filters");
   return state.records.filter(record => {
+    if (!matchesSmartSearch(record, state.searchQuery, state.selectedMitigations)) return false;
     if (!severity.has(record.severity)) return false;
     if (!vectors.has(record.attack.vector)) return false;
     if (state.selectedProducts.size && !record.tags.some(tag => state.selectedProducts.has(tag))) return false;
@@ -105,7 +106,8 @@ function render() {
   $("empty-state").textContent = state.records.length ? "No vulnerabilities match the selected criteria." : "No records loaded.";
   const scoredEpss = records.filter(record => record.threat.epss !== null && record.threat.epss !== undefined && Number.isFinite(Number(record.threat.epss))).length;
   const epssStatus = records.length ? `EPSS is available for ${scoredEpss} of ${records.length}; newly published CVEs remain marked not yet scored.` : "";
-  $("status").textContent = state.records.length ? `${records.length} of ${state.records.length} records match. ${state.selectedMitigations.size} verified mitigation selections are active. ${epssStatus}` : "Import an enriched monthly JSONL file or load the synthetic demo.";
+  const searchStatus = state.searchQuery ? ` Search: "${state.searchQuery}".` : "";
+  $("status").textContent = state.records.length ? `${records.length} of ${state.records.length} records match.${searchStatus} ${state.selectedMitigations.size} verified mitigation selections are active. ${epssStatus}` : "Import an enriched monthly JSONL file or load the synthetic demo.";
   $("export-jsonl").disabled = state.records.length === 0;
 
   for (const row of body.querySelectorAll("tr")) {
@@ -183,9 +185,27 @@ $("clear-filters").addEventListener("click", () => {
   document.querySelectorAll("#severity-filters input, #vector-filters input").forEach(input => { input.checked = true; });
   state.selectedProducts.clear();
   state.selectedMitigations.clear();
+  state.searchQuery = "";
+  $("smart-search").value = "";
   render();
 });
 for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely"]) $(id).addEventListener("change", render);
+$("smart-search-form").addEventListener("submit", event => event.preventDefault());
+$("smart-search").addEventListener("input", event => {
+  state.searchQuery = event.target.value.trim();
+  render();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
+    event.preventDefault();
+    $("smart-search").focus();
+  }
+  if (event.key === "Escape" && document.activeElement === $("smart-search")) {
+    $("smart-search").value = "";
+    state.searchQuery = "";
+    render();
+  }
+});
 
 loadCatalog().catch(error => { $("status").textContent = error.message; });
 loadPublishedMonths().catch(() => {});

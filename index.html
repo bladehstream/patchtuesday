@@ -14,6 +14,11 @@
         <p class="product-mark">Patch Tuesday Triage</p>
         <p id="dataset-meta" class="dataset-meta">No month loaded</p>
       </div>
+      <form id="smart-search-form" class="smart-search" role="search">
+        <label for="smart-search" class="visually-hidden">Search vulnerabilities</label>
+        <input id="smart-search" type="search" autocomplete="off" placeholder="Search CVE, title, product, tag or use tag:dns" />
+        <p id="search-help">Examples: CVE-2026-69829, windows shell, tag:dns, cvss:&gt;=9, microsoft:unlikely, action:immediate</p>
+      </form>
       <div class="header-actions">
         <select id="published-month" class="month-select" aria-label="Published month">
           <option value="">Published month</option>

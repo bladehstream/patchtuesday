@@ -161,3 +161,81 @@ export function formatMicrosoftAssessment(value) {
     unknown: "Not published",
   })[value] || "Not published";
 }
+
+function queryTokens(query) {
+  const tokens = [];
+  const pattern = /"([^"]+)"|(\S+)/g;
+  let match;
+  while ((match = pattern.exec(query)) !== null) tokens.push(match[1] || match[2]);
+  return tokens;
+}
+
+function compareNumber(actual, expression) {
+  if (actual === null || actual === undefined || !Number.isFinite(Number(actual))) return false;
+  const match = String(expression).match(/^(>=|<=|>|<|=)?\s*([0-9.]+)(%)?$/);
+  if (!match) return false;
+  const operator = match[1] || "=";
+  let expected = Number(match[2]);
+  if (match[3]) expected /= 100;
+  const value = Number(actual);
+  return ({
+    ">=": value >= expected,
+    "<=": value <= expected,
+    ">": value > expected,
+    "<": value < expected,
+    "=": value === expected,
+  })[operator];
+}
+
+function allText(record) {
+  return [
+    record.cve,
+    record.title,
+    record.severity,
+    record.attack?.vector,
+    record.attack?.privileges_required,
+    record.attack?.user_interaction,
+    record.threat?.exploitation_assessment,
+    ...(record.tags || []),
+    ...(record.products || []).flatMap(product => [product.name, product.product_id]),
+    ...(record.mitigation_candidates || []).flatMap(item => [item.id, item.evidence]),
+    ...(record.vendor_guidance?.notes || []).flatMap(note => [note.title, note.value]),
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function fieldMatches(record, field, value, selectedMitigations) {
+  const query = value.toLowerCase();
+  if (field === "cve") return record.cve.toLowerCase().includes(query);
+  if (field === "tag") return (record.tags || []).some(tag => tag.toLowerCase() === query || tag.toLowerCase().includes(query));
+  if (field === "product") return (record.products || []).some(product => `${product.name} ${product.product_id}`.toLowerCase().includes(query));
+  if (field === "severity") return record.severity.toLowerCase() === query;
+  if (field === "vector") return record.attack?.vector?.toLowerCase() === query;
+  if (field === "microsoft") return record.threat?.exploitation_assessment?.toLowerCase() === query.replaceAll(" ", "-");
+  if (field === "mitigation") return (record.mitigation_candidates || []).some(item => `${item.id} ${item.evidence}`.toLowerCase().includes(query));
+  if (field === "kev") return Boolean(record.threat?.kev) === ["true", "yes", "1"].includes(query);
+  if (field === "cvss") return compareNumber(record.cvss?.base_score, query);
+  if (field === "epss") return compareNumber(record.threat?.epss, query);
+  if (field === "action") return predictProfile(record, selectedMitigations).residual.action.toLowerCase().replaceAll(" ", "-") === query.replaceAll(" ", "-");
+  if (field === "likelihood") return predictProfile(record, selectedMitigations).residual.likelihood.toLowerCase().replaceAll(" ", "-") === query.replaceAll(" ", "-");
+  return null;
+}
+
+export function matchesSmartSearch(record, query, selectedMitigations = new Set()) {
+  if (!String(query || "").trim()) return true;
+  const haystack = allText(record);
+  return queryTokens(query).every(rawToken => {
+    const negative = rawToken.startsWith("-") && rawToken.length > 1;
+    const token = negative ? rawToken.slice(1) : rawToken;
+    const separator = token.indexOf(":");
+    let matched;
+    if (separator > 0) {
+      const field = token.slice(0, separator).toLowerCase();
+      const value = token.slice(separator + 1);
+      const fieldResult = fieldMatches(record, field, value, selectedMitigations);
+      matched = fieldResult === null ? haystack.includes(token.toLowerCase()) : fieldResult;
+    } else {
+      matched = haystack.includes(token.toLowerCase());
+    }
+    return negative ? !matched : matched;
+  });
+}

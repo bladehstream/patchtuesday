@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { formatEpss, formatMicrosoftAssessment, parseJsonl, predictProfile } from "../engine.js";
+import { formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "../engine.js";
 
 const active = parseJsonl(JSON.stringify({
   month: "2026-Sep", cve: "CVE-TEST-1", severity: "Critical", tags: ["server"],
@@ -41,5 +41,20 @@ const moreLikely = {
   threat: { kev: false, exploitation_detected: false, exploitation_assessment: "more-likely", epss: null },
 };
 assert.equal(predictProfile(moreLikely, new Set()).baseline.likelihood, "Elevated");
+
+const searchable = {
+  ...unlikelyCritical,
+  cve: "CVE-2026-69829",
+  title: "Windows Shell Remote Code Execution Vulnerability",
+  tags: ["windows", "server-2016", "windows-shell"],
+  products: [{ name: "Windows Server 2016", product_id: "10816" }],
+  cvss: { base_score: 9.8 },
+  mitigation_candidates: [{ id: "segmentation_acl", evidence: "Restrict in-network access" }],
+};
+assert.equal(matchesSmartSearch(searchable, "69829"), true);
+assert.equal(matchesSmartSearch(searchable, '"windows shell" tag:server-2016'), true);
+assert.equal(matchesSmartSearch(searchable, "cvss:>=9 microsoft:unlikely vector:network"), true);
+assert.equal(matchesSmartSearch(searchable, "kev:true"), false);
+assert.equal(matchesSmartSearch(searchable, "-tag:windows-shell"), false);
 
 console.log("engine tests passed");
