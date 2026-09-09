@@ -17,4 +17,12 @@ assert.equal(baseline.likelihood, "Plausible", "Current EPSS evidence may raise 
 assert.equal(baseline.action, "Out-of-cycle");
 assert.ok(record.mitigation_candidates.some(item => item.id === "segmentation_acl"));
 assert.ok(!record.mitigation_candidates.some(item => item.id === "email_web_filtering"));
+
+const dns = records.find(item => item.cve === "CVE-2026-69730");
+assert.ok(dns, "CVE-2026-69730 must remain in the September dataset");
+const dnsBaseline = predictProfile(dns, new Set());
+assert.equal(dnsBaseline.baseline.likelihood, "Elevated");
+assert.equal(dnsBaseline.baseline.action, "Immediate");
+const dnsMitigated = predictProfile(dns, new Set(dns.mitigation_candidates.map(item => item.id)));
+assert.equal(dnsMitigated.residual.action, "Out-of-cycle");
 console.log("September CVE regression test passed");

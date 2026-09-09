@@ -3,6 +3,14 @@ export const LIKELIHOOD = ["Low evidence", "Plausible", "Elevated", "Active"];
 
 const severityRank = { Critical: 4, Important: 3, Moderate: 2, Low: 1 };
 
+export function isCriticalPreAuthNetworkRce(record) {
+  return Number(record.cvss?.base_score || 0) >= 9
+    && record.attack?.vector === "network"
+    && record.attack?.privileges_required === "none"
+    && record.attack?.user_interaction === "none"
+    && (record.tags || []).includes("remote-code-execution");
+}
+
 export function baselineProfile(record) {
   const threat = record.threat || {};
   const vector = (record.attack || {}).vector || "unknown";
@@ -36,7 +44,10 @@ export function baselineProfile(record) {
     reasons.push("EPSS provides additional exploitation evidence");
   }
 
-  if (action < 3 && severity === 4) {
+  if (action < 3 && isCriticalPreAuthNetworkRce(record) && likelihood >= 2) {
+    action = 3;
+    reasons.push("Critical pre-authentication network RCE with elevated exploitation evidence");
+  } else if (action < 3 && severity === 4) {
     action = 2;
     reasons.push("Critical technical severity");
   } else if (action < 3 && likelihood >= 2 && severity >= 3) {
@@ -87,6 +98,7 @@ export function predictProfile(record, selectedMitigations = new Set()) {
 
   const active = Boolean(record.threat?.kev || record.threat?.exploitation_detected);
   const specialPathBlock = applied.some(item => item.effect?.path_block === true && item.confidence === "high");
+  const urgentPreAuthRce = isCriticalPreAuthNetworkRce(record) && base.action === 3 && base.likelihood >= 2;
   const maxLikelihoodCredit = specialPathBlock ? 2 : 1;
   likelihoodCredit = Math.min(likelihoodCredit, maxLikelihoodCredit);
   consequenceCredit = Math.min(consequenceCredit, 1);
@@ -95,11 +107,13 @@ export function predictProfile(record, selectedMitigations = new Set()) {
   let residualAction = base.action;
   if (likelihoodCredit >= 1 || consequenceCredit >= 1) residualAction -= 1;
   if (likelihoodCredit >= 2 && consequenceCredit >= 1) residualAction -= 1;
-  residualAction = Math.max(active ? 2 : 0, residualAction);
+  const actionFloor = active || (urgentPreAuthRce && !specialPathBlock) ? 2 : 0;
+  residualAction = Math.max(actionFloor, residualAction);
 
   const reasons = [...base.reasons];
   if (applied.length) reasons.push(`${applied.length} verified exploit-relevant mitigation${applied.length === 1 ? "" : "s"} applied`);
   if (active && residualAction === 2) reasons.push("Active exploitation enforces an out-of-cycle floor");
+  if (urgentPreAuthRce && !specialPathBlock && residualAction === 2) reasons.push("Critical pre-authentication network RCE enforces an out-of-cycle floor without an exact path-blocking workaround");
 
   return {
     baseline: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action] },

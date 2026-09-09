@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
@@ -171,6 +171,14 @@ function render() {
   if (state.selectedCve) renderDetail();
 }
 
+function riskInterpretation(record, profile) {
+  if (record.customer_action_required === false) return "Microsoft states that this service has already been mitigated and no customer action is required.";
+  if (record.threat.kev || record.threat.exploitation_detected) return "Immediate action is driven by confirmed exploitation. CVSS describes technical impact, but observed exploitation determines present urgency.";
+  if (isCriticalPreAuthNetworkRce(record) && profile.baseline.likelihood === "Elevated") return "Immediate action is driven by the combination of Critical impact, unauthenticated network reachability, no user interaction, remote code execution, and elevated Microsoft exploitation likelihood.";
+  if (record.severity === "Critical") return "Out-of-cycle action is driven by Critical technical impact even though current exploitation evidence is lower.";
+  return "The action combines current exploitation evidence with technical severity and exploit prerequisites. Selected controls adjust the result only when the reviewed overlay links them to this exploit path.";
+}
+
 function renderDetail() {
   const record = state.recordByCve.get(state.selectedCve);
   if (!record) {
@@ -183,8 +191,16 @@ function renderDetail() {
     <h2>${escapeHtml(record.cve)}</h2>
     <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
     <p>${escapeHtml(record.title)}</p>
-    <h3>Predicted profile</h3>
-    <p><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></p>
+    <h3>Risk assessment</h3>
+    <dl class="risk-breakdown">
+      <dt>Threat likelihood</dt><dd>${escapeHtml(profile.baseline.likelihood)}</dd>
+      <dt>Microsoft</dt><dd>${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</dd>
+      <dt>CVSS</dt><dd>${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</dd>
+      <dt>Exploit path</dt><dd>${escapeHtml(record.attack.vector)} · privileges ${escapeHtml(record.attack.privileges_required)} · interaction ${escapeHtml(record.attack.user_interaction)}</dd>
+      <dt>Baseline action</dt><dd><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(profile.baseline.action)}</span></dd>
+      <dt>With controls</dt><dd><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></dd>
+    </dl>
+    <p class="risk-interpretation">${escapeHtml(riskInterpretation(record, profile))}</p>
     <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
     <h3>Relevant mitigation inference</h3>
     ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
