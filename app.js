@@ -43,10 +43,25 @@ function renderMitigations() {
       <input type="checkbox" value="${escapeHtml(item.id)}" />
       <span>${escapeHtml(item.name)}<span class="secondary-line">${escapeHtml(item.category)}</span></span>
     </label>`).join("");
+  updateMitigationSummary();
   container.onchange = () => {
     state.selectedMitigations = checkedValues("mitigation-filters");
+    updateMitigationSummary();
     render();
   };
+}
+
+function updateMitigationSummary() {
+  const summary = $("mitigation-summary");
+  if (!summary) return;
+  const selected = [...state.selectedMitigations];
+  if (!selected.length) {
+    summary.textContent = "No mitigations selected";
+  } else if (selected.length === 1) {
+    summary.textContent = catalogName(selected[0]);
+  } else {
+    summary.textContent = `${selected.length} mitigations selected`;
+  }
 }
 
 function productTags() {
@@ -120,7 +135,7 @@ function render() {
   $("export-jsonl").disabled = state.records.length === 0;
 
   for (const row of body.querySelectorAll("tr")) {
-    const select = () => { state.selectedCve = row.dataset.cve; render(); };
+    const select = () => { state.selectedCve = row.dataset.cve; render(); renderDetail(); };
     row.addEventListener("click", select);
     row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
   }
@@ -133,28 +148,17 @@ function renderDetail() {
   const profile = predictProfile(record, state.selectedMitigations);
   const relevant = record.mitigation_candidates.filter(item => item.relevance !== "not-relevant");
   $("detail-panel").innerHTML = `
-    <div class="detail-grid">
-      <section class="detail-section">
-        <h2>${escapeHtml(record.cve)}</h2>
-        <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
-        <p>${escapeHtml(record.title)}</p>
-        <p><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></p>
-      </section>
-      <section class="detail-section">
-        <h3>Decision basis</h3>
-        <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
-      </section>
-      <section class="detail-section">
-        <h3>Relevant mitigation inference</h3>
-        ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigation inference has been reviewed for this record.</p>`}
-      </section>
-      <section class="detail-section">
-        <h3>Record provenance</h3>
-        <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${escapeHtml(record.inference.review_status || "unreviewed")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
-        <p class="detail-meta">CVSS ${record.cvss.base_score ?? "not published"} · Microsoft ${formatMicrosoftAssessment(record.threat.exploitation_assessment)} · EPSS ${epssDisplay(record.threat)}</p>
-        ${record.source.url ? `<a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">Open Microsoft advisory</a>` : ""}
-      </section>
-    </div>`;
+    <h2>${escapeHtml(record.cve)}</h2>
+    <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
+    <p>${escapeHtml(record.title)}</p>
+    <h3>Predicted profile</h3>
+    <p><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></p>
+    <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+    <h3>Relevant mitigation inference</h3>
+    ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
+    <h3>Inference record</h3>
+    <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${escapeHtml(record.inference.review_status || "unreviewed")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
+    ${record.source.url ? `<h3>Source</h3><a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(record.source.url)}</a>` : ""}`;
 }
 
 function catalogName(id) { return state.catalog.find(item => item.id === id)?.name || id; }
@@ -206,17 +210,14 @@ $("clear-filters").addEventListener("click", () => {
   document.querySelectorAll("#severity-filters input, #vector-filters input").forEach(input => { input.checked = true; });
   state.selectedProducts.clear();
   state.selectedMitigations.clear();
+  updateMitigationSummary();
   state.searchQuery = "";
   $("smart-search").value = "";
   render();
 });
-$("filter-toggle").addEventListener("click", event => {
-  const panel = $("filter-panel");
-  const collapsed = !panel.hidden;
-  panel.hidden = collapsed;
-  document.body.classList.toggle("filters-collapsed", collapsed);
-  event.currentTarget.setAttribute("aria-expanded", String(!collapsed));
-  event.currentTarget.textContent = collapsed ? "Show filters" : "Hide filters";
+document.addEventListener("click", event => {
+  const select = $("mitigation-select");
+  if (select?.open && !select.contains(event.target)) select.open = false;
 });
 for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely"]) $(id).addEventListener("change", render);
 $("smart-search-form").addEventListener("submit", event => event.preventDefault());

@@ -10,21 +10,16 @@
   </head>
   <body>
     <header class="app-header">
-      <div class="brand-block">
+      <div>
         <p class="product-mark">Patch Tuesday Triage</p>
         <p id="dataset-meta" class="dataset-meta">No month loaded</p>
       </div>
       <form id="smart-search-form" class="smart-search" role="search">
         <label for="smart-search" class="visually-hidden">Search vulnerabilities</label>
         <input id="smart-search" type="search" autocomplete="off" placeholder="Search CVE, title, product, tag or use tag:dns" />
-        <p id="search-help">CVE, keyword, tag:dns, cvss:&gt;=9, microsoft:unlikely, action:immediate</p>
+        <p id="search-help">Examples: CVE-2026-69829, windows shell, tag:dns, cvss:&gt;=9, microsoft:unlikely, action:immediate</p>
       </form>
-      <button id="export-jsonl" class="button primary" type="button" disabled>Export assessment</button>
-    </header>
-
-    <main class="workspace">
-      <section class="command-bar" aria-label="Dataset and filter controls">
-        <div class="dataset-controls">
+      <div class="header-actions">
         <select id="published-month" class="month-select" aria-label="Published month">
           <option value="">Published month</option>
         </select>
@@ -32,71 +27,72 @@
         <label class="button secondary" for="jsonl-file">Import JSONL</label>
         <input id="jsonl-file" type="file" accept=".jsonl,.ndjson,text/plain" hidden />
         <button id="load-demo" class="button secondary" type="button">Load demo month</button>
-        </div>
-        <div class="view-controls">
-          <button id="filter-toggle" class="button secondary" type="button" aria-expanded="true" aria-controls="filter-panel">Hide filters</button>
-          <button id="clear-filters" class="text-button" type="button">Reset assessment</button>
-        </div>
-      </section>
+        <button id="export-jsonl" class="button primary" type="button" disabled>Export assessment</button>
+      </div>
+    </header>
 
-      <section id="filter-panel" class="filter-ribbon" aria-label="Assessment filters">
+    <main class="workspace">
+      <aside class="filter-panel" aria-label="Assessment filters">
         <div class="panel-heading">
           <h1>Environment profile</h1>
-          <p>Choose broad environment controls. Product selections and mitigation choices remain in this browser.</p>
+          <button id="clear-filters" class="text-button" type="button">Reset</button>
         </div>
-        <div class="filter-groups">
-          <fieldset class="filter-group products-group">
-            <legend>Products and workloads</legend>
-            <div id="product-filters" class="choice-list compact-grid muted-copy">Load a month to populate product tags.</div>
-          </fieldset>
 
-          <fieldset class="filter-group severity-group">
-            <legend>Severity</legend>
-            <div id="severity-filters" class="choice-list compact-grid">
-              <label><input type="checkbox" value="Critical" checked /> Critical</label>
-              <label><input type="checkbox" value="Important" checked /> Important</label>
-              <label><input type="checkbox" value="Moderate" checked /> Moderate</label>
-              <label><input type="checkbox" value="Low" checked /> Low</label>
+        <fieldset>
+          <legend>Products and workloads</legend>
+          <div id="product-filters" class="choice-list muted-copy">Load a month to populate product tags.</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Severity</legend>
+          <div id="severity-filters" class="choice-list">
+            <label><input type="checkbox" value="Critical" checked /> Critical</label>
+            <label><input type="checkbox" value="Important" checked /> Important</label>
+            <label><input type="checkbox" value="Moderate" checked /> Moderate</label>
+            <label><input type="checkbox" value="Low" checked /> Low</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Attack vector</legend>
+          <div id="vector-filters" class="choice-list">
+            <label><input type="checkbox" value="network" checked /> Network</label>
+            <label><input type="checkbox" value="adjacent" checked /> Adjacent</label>
+            <label><input type="checkbox" value="local" checked /> Local</label>
+            <label><input type="checkbox" value="physical" checked /> Physical</label>
+            <label><input type="checkbox" value="unknown" checked /> Unknown</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Threat evidence</legend>
+          <div class="choice-list">
+            <label><input id="filter-exploited" type="checkbox" /> Confirmed exploited or KEV only</label>
+            <label><input id="filter-likely" type="checkbox" /> Exploitation more likely only</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Verified mitigations</legend>
+          <p class="field-help">Selections only receive credit where the inference record marks them relevant to the exploit path.</p>
+          <details id="mitigation-select" class="multi-select">
+            <summary id="mitigation-summary">No mitigations selected</summary>
+            <div class="multi-select-menu">
+              <div id="mitigation-filters" class="choice-list muted-copy">Mitigation catalogue is loading.</div>
             </div>
-          </fieldset>
-
-          <fieldset class="filter-group vector-group">
-            <legend>Attack vector</legend>
-            <div id="vector-filters" class="choice-list compact-grid">
-              <label><input type="checkbox" value="network" checked /> Network</label>
-              <label><input type="checkbox" value="adjacent" checked /> Adjacent</label>
-              <label><input type="checkbox" value="local" checked /> Local</label>
-              <label><input type="checkbox" value="physical" checked /> Physical</label>
-              <label><input type="checkbox" value="unknown" checked /> Unknown</label>
-            </div>
-          </fieldset>
-
-          <fieldset class="filter-group threat-group">
-            <legend>Threat evidence</legend>
-            <div class="choice-list">
-              <label><input id="filter-exploited" type="checkbox" /> Exploited or KEV only</label>
-              <label><input id="filter-likely" type="checkbox" /> Microsoft more likely only</label>
-            </div>
-          </fieldset>
-
-          <fieldset class="filter-group mitigations-group">
-            <legend>Verified mitigations</legend>
-            <p class="field-help">Credit applies only when inference links the control to the exploit path.</p>
-            <div id="mitigation-filters" class="choice-list compact-grid muted-copy">Mitigation catalogue is loading.</div>
-          </fieldset>
-        </div>
-      </section>
+          </details>
+        </fieldset>
+      </aside>
 
       <section class="results-panel">
-        <div class="results-heading">
-          <div id="summary-strip" class="summary-strip" aria-live="polite">
-            <div><span id="visible-count" class="summary-value">0</span><span>visible</span></div>
-            <div><span id="immediate-count" class="summary-value">0</span><span>immediate</span></div>
-            <div><span id="out-cycle-count" class="summary-value">0</span><span>out of cycle</span></div>
-            <div><span id="scheduled-count" class="summary-value">0</span><span>scheduled</span></div>
-          </div>
-          <div id="status" class="status" role="status">Import an enriched monthly JSONL file or load the synthetic demo.</div>
+        <div id="summary-strip" class="summary-strip" aria-live="polite">
+          <div><span id="visible-count" class="summary-value">0</span><span>visible</span></div>
+          <div><span id="immediate-count" class="summary-value">0</span><span>immediate</span></div>
+          <div><span id="out-cycle-count" class="summary-value">0</span><span>out of cycle</span></div>
+          <div><span id="scheduled-count" class="summary-value">0</span><span>scheduled</span></div>
         </div>
+
+        <div id="status" class="status" role="status">Import an enriched monthly JSONL file or load the synthetic demo.</div>
 
         <div class="table-shell">
           <table>
@@ -114,11 +110,11 @@
           </table>
           <div id="empty-state" class="empty-state">No records loaded.</div>
         </div>
-
-        <article id="detail-panel" class="detail-panel" aria-label="Vulnerability detail">
-          <p class="detail-placeholder">Select a vulnerability to inspect its evidence, applicable mitigations, and decision path.</p>
-        </article>
       </section>
+
+      <aside id="detail-panel" class="detail-panel" aria-label="Vulnerability detail">
+        <p class="detail-placeholder">Select a vulnerability to inspect its evidence, applicable mitigations, and decision path.</p>
+      </aside>
     </main>
 
     <script type="module" src="./app.js"></script>
