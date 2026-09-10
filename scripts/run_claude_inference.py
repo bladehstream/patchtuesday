@@ -82,8 +82,16 @@ def build_schema(cves: list[str], tags: set[str], controls: set[str]) -> dict:
         "factors": obj({key: string for key in factor_keys}),
         "risk_communication": communication,
     })
+    # Direction is asserted BEFORE controls are assessed, and is required, so the
+    # model cannot credit an ingress control against an outbound attack path
+    # without first committing to a direction the validator can check.
+    attack_path = obj({
+        "direction": enum(validation.ATTACK_DIRECTIONS),
+        "evidence": string,
+    })
     overlay = obj({
         "cve": enum(cves),
+        "attack_path": attack_path,
         "tags": {"type": "array", "items": enum(sorted(tags))},
         "mitigation_candidates": {"type": "array", "items": candidate},
         "framework_assessment": assessment,
