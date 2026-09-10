@@ -6,7 +6,7 @@
     <meta name="description" content="Local-first Microsoft Patch Tuesday triage using enriched monthly JSONL data." />
     <title>Patch Tuesday Triage</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=2026.09.priorities" />
   </head>
   <body>
     <header class="app-header">
@@ -17,7 +17,7 @@
       <form id="smart-search-form" class="smart-search" role="search">
         <label for="smart-search" class="visually-hidden">Search vulnerabilities</label>
         <input id="smart-search" type="search" autocomplete="off" placeholder="Search CVE, title, product, tag or use tag:dns" />
-        <p id="search-help">Examples: CVE-2026-69829, windows shell, tag:dns, cvss:&gt;=9, microsoft:unlikely, action:immediate</p>
+        <p id="search-help">Examples: CVE-2026-69829, tag:dns, cvss:&gt;=9, action:emergency, review:required</p>
       </form>
       <div class="header-actions">
         <select id="published-month" class="month-select" aria-label="Published month">
@@ -85,6 +85,7 @@
           <div class="choice-list">
             <label><input id="filter-exploited" type="checkbox" /> Confirmed exploited or KEV only</label>
             <label><input id="filter-likely" type="checkbox" /> Exploitation more likely only</label>
+            <label><input id="filter-review" type="checkbox" /> Review required only</label>
           </div>
         </fieldset>
 
@@ -93,10 +94,13 @@
       <section class="results-panel">
         <div id="summary-strip" class="summary-strip" aria-live="polite">
           <div><span id="visible-count" class="summary-value">0</span><span>visible</span></div>
-          <div><span id="immediate-count" class="summary-value">0</span><span>immediate</span></div>
-          <div><span id="out-cycle-count" class="summary-value">0</span><span>out of cycle</span></div>
-          <div><span id="scheduled-count" class="summary-value">0</span><span>scheduled</span></div>
+          <div><span id="immediate-count" class="summary-value">0</span><span>Emergency</span></div>
+          <div><span id="out-cycle-count" class="summary-value">0</span><span>Expedited</span></div>
+          <div><span id="scheduled-count" class="summary-value">0</span><span>Normal scheduled</span></div>
+          <div><span id="no-action-count" class="summary-value">0</span><span>No customer action</span></div>
+          <div><span id="review-count" class="summary-value">0</span><span>Review required</span></div>
         </div>
+        <p class="priority-help">Emergency: act now · Expedited: ahead of the routine patch cycle · Normal scheduled: next routine patch cycle</p>
 
         <div id="status" class="status" role="status">Import an enriched monthly JSONL file or load the synthetic demo.</div>
 
@@ -123,6 +127,6 @@
       </aside>
     </main>
 
-    <script type="module" src="./app.js?v=2026.09.full"></script>
+    <script type="module" src="./app.js?v=2026.09.priorities"></script>
   </body>
 </html>

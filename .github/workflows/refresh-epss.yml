@@ -27,6 +27,7 @@ jobs:
           node tests/september_record.test.mjs
           node tests/ui_performance.test.mjs
           node tests/coverage.test.mjs
+          node tests/priorities-review.test.mjs
           node scripts/audit-mitigations.mjs
           python tests/test_enrich_cvrf.py
           python tests/test_merge_inference.py

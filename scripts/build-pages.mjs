@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { validateCoverage } from "./validate-coverage.mjs";
+import { reviewStatus, formatPriority, predictProfile } from "../engine.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(root, "dist");
@@ -19,7 +20,10 @@ const manifestPath = path.join(distData, "months.json");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 for (const item of manifest) {
   const source = path.join(distData, item.file);
-  const content = fs.readFileSync(source);
+  const records = fs.readFileSync(source, "utf8").trim().split(/\r?\n/).map(JSON.parse);
+  const annotated = records.map(record => ({ ...record, priority: formatPriority(predictProfile(record).baseline.action), review: reviewStatus(record) }));
+  const content = Buffer.from(annotated.map(record => JSON.stringify(record)).join("\n") + "\n", "utf8");
+  fs.writeFileSync(source, content);
   const hash = createHash("sha256").update(content).digest("hex").slice(0, 12);
   const extension = path.extname(item.file);
   const basename = path.basename(item.file, extension);

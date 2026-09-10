@@ -5,6 +5,6 @@
   "scripts": {
     "dev": "python -m http.server 4173",
     "build": "node scripts/build-pages.mjs",
-    "test": "node tests/engine.test.mjs && node tests/september_record.test.mjs && node tests/ui_performance.test.mjs && node tests/coverage.test.mjs && node scripts/audit-mitigations.mjs"
+    "test": "node tests/engine.test.mjs && node tests/september_record.test.mjs && node tests/ui_performance.test.mjs && node tests/coverage.test.mjs && node tests/priorities-review.test.mjs && node scripts/audit-mitigations.mjs"
   }
 }

@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.full";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, publicProfile, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.priorities";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
@@ -113,6 +113,7 @@ function filteredRecords() {
     if (state.selectedProducts.size && !record.tags.some(tag => state.selectedProducts.has(tag))) return false;
     if ($("filter-exploited").checked && !(record.threat.kev || record.threat.exploitation_detected)) return false;
     if ($("filter-likely").checked && record.threat.exploitation_assessment !== "more-likely") return false;
+    if ($("filter-review").checked && !record.review.required) return false;
     return true;
   });
 }
@@ -135,12 +136,12 @@ function render() {
     const profile = predictProfile(record, state.selectedMitigations);
     const changed = profile.baseline.action !== profile.residual.action || profile.baseline.likelihood !== profile.residual.likelihood;
     return `<tr data-cve="${escapeHtml(record.cve)}" tabindex="0" aria-selected="${state.selectedCve === record.cve}">
-      <td><span class="cve-id">${escapeHtml(record.cve)}</span></td>
+      <td><span class="cve-id">${escapeHtml(record.cve)}</span>${record.review.required ? `<span class="review-badge" title="${escapeHtml(record.review.reasons.map(reason => reason.message).join(" "))}">Review required</span>` : ""}</td>
       <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)}</span></td>
       <td><div class="tag-list">${record.tags.slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
       <td><span class="threat-line">Microsoft: ${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</span><span class="secondary-line">CVSS ${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</span><span class="secondary-line">EPSS ${epssDisplay(record.threat)}</span>${record.threat.kev ? `<span class="kev-line">CISA KEV listed</span>` : ""}</td>
-      <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(profile.baseline.action)}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
-      <td><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span><span class="secondary-line">${escapeHtml(profile.residual.likelihood)}</span>${changed ? `<span class="change-note">Adjusted by verified relevant controls</span>` : ""}</td>
+      <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
+      <td><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span><span class="secondary-line">${escapeHtml(profile.residual.likelihood)}</span>${changed ? `<span class="change-note">Adjusted by verified relevant controls</span>` : ""}</td>
     </tr>`;
   }).join("");
 
@@ -149,6 +150,8 @@ function render() {
   $("immediate-count").textContent = profiles.filter(p => p.residual.action === "Immediate").length;
   $("out-cycle-count").textContent = profiles.filter(p => p.residual.action === "Out-of-cycle").length;
   $("scheduled-count").textContent = profiles.filter(p => p.residual.action === "Scheduled").length;
+  $("no-action-count").textContent = profiles.filter(p => p.residual.action === "Defer and review").length;
+  $("review-count").textContent = records.filter(record => record.review.required).length;
   $("empty-state").hidden = records.length > 0;
   $("empty-state").textContent = state.records.length ? "No vulnerabilities match the selected criteria." : "No records loaded.";
   const scoredEpss = records.filter(record => record.threat.epss !== null && record.threat.epss !== undefined && Number.isFinite(Number(record.threat.epss))).length;
@@ -201,6 +204,11 @@ function renderDetail() {
     <h2>${escapeHtml(record.cve)}</h2>
     <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
     <p>${escapeHtml(record.title)}</p>
+    ${record.review.required ? `<section class="review-notice" aria-label="Further review required">
+      <h3>Further review required</h3>
+      <ul>${record.review.reasons.map(reason => `<li>${escapeHtml(reason.message)}${reason.evidence ? `<span class="secondary-line">${escapeHtml(formatPriorityText(reason.evidence))}</span>` : ""}</li>`).join("")}</ul>
+      <p>Review these points alongside the shown patch priority.</p>
+    </section>` : ""}
     <h3>Risk assessment</h3>
     <dl class="risk-breakdown">
       <dt>Threat likelihood</dt><dd>${escapeHtml(profile.baseline.likelihood)}</dd>
@@ -208,22 +216,22 @@ function renderDetail() {
       <dt>Microsoft</dt><dd>${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</dd>
       <dt>CVSS</dt><dd>${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</dd>
       <dt>Exploit path</dt><dd>${escapeHtml(record.attack.vector)} · privileges ${escapeHtml(record.attack.privileges_required)} · interaction ${escapeHtml(record.attack.user_interaction)}</dd>
-      <dt>Baseline action</dt><dd><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(profile.baseline.action)}</span></dd>
-      <dt>With controls</dt><dd><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(profile.residual.action)}</span></dd>
+      <dt>Baseline priority</dt><dd><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span></dd>
+      <dt>With controls</dt><dd><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span></dd>
     </dl>
-    <p class="risk-interpretation">${escapeHtml(riskInterpretation(record, profile))}</p>
-    <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+    <p class="risk-interpretation">${escapeHtml(formatPriorityText(riskInterpretation(record, profile)))}</p>
+    <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(formatPriorityText(reason))}</li>`).join("")}</ul>
     ${framework ? `<div class="framework-review">
       <h3>Framework review</h3>
-      <p><strong>Why this action:</strong> ${escapeHtml(framework.risk_communication.why_this_action)}</p>
-      <p><strong>Control limitations:</strong> ${escapeHtml(framework.risk_communication.control_limitations)}</p>
-      <p><strong>Reassess when:</strong> ${framework.risk_communication.reassessment_triggers.map(item => escapeHtml(item)).join("; ")}</p>
+      <p><strong>Why this priority:</strong> ${escapeHtml(formatPriorityText(framework.risk_communication.why_this_action))}</p>
+      <p><strong>Control limitations:</strong> ${escapeHtml(formatPriorityText(framework.risk_communication.control_limitations))}</p>
+      <p><strong>Reassess when:</strong> ${framework.risk_communication.reassessment_triggers.map(item => escapeHtml(formatPriorityText(item))).join("; ")}</p>
       <p class="detail-meta">Model ${escapeHtml(framework.risk_model_version)} · ${escapeHtml(framework.confidence)} confidence</p>
     </div>` : ""}
     <h3>Relevant mitigation inference</h3>
     ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${item.confidence === "low" ? "No assessment credit · low confidence" : `${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit · ${item.effect?.consequence_steps || 0} consequence step credit`}</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
     <h3>Inference record</h3>
-    <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${escapeHtml(record.inference.review_status || "unreviewed")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
+    <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${record.inference.review_status === "reviewed" ? "model assessed" : "not assessed"}${record.inference.verification ? " · additional Codex review" : ""}</p>
     ${record.source.url ? `<h3>Source</h3><a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(record.source.url)}</a>` : ""}`;
 }
 
@@ -233,6 +241,10 @@ function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, char 
 async function loadText(text) {
   try {
     state.records = parseJsonl(text);
+    for (const record of state.records) {
+      record.review = reviewStatus(record);
+      record.priority = formatPriority(predictProfile(record).baseline.action);
+    }
     state.recordByCve = new Map(state.records.map(record => [record.cve, record]));
     state.selectedProducts.clear();
     state.selectedCve = state.records[0]?.cve || null;
@@ -262,7 +274,7 @@ $("load-published").addEventListener("click", async () => {
   await loadText(await response.text());
 });
 $("export-jsonl").addEventListener("click", () => {
-  const assessed = state.records.map(record => ({ ...record, assessment: { assessed_at: new Date().toISOString(), selected_mitigations: [...state.selectedMitigations], profile: predictProfile(record, state.selectedMitigations) } }));
+  const assessed = state.records.map(record => ({ ...record, review: reviewStatus(record), assessment: { assessed_at: new Date().toISOString(), selected_mitigations: [...state.selectedMitigations], profile: publicProfile(record, state.selectedMitigations), review: reviewStatus(record) } }));
   const blob = new Blob([exportJsonl(assessed)], { type: "application/x-ndjson" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -272,7 +284,7 @@ $("export-jsonl").addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 $("clear-filters").addEventListener("click", () => {
-  document.querySelectorAll("#product-filters input, #mitigation-filters input, #filter-exploited, #filter-likely").forEach(input => { input.checked = false; });
+  document.querySelectorAll("#product-filters input, #mitigation-filters input, #filter-exploited, #filter-likely, #filter-review").forEach(input => { input.checked = false; });
   document.querySelectorAll("#severity-filters input, #vector-filters input").forEach(input => { input.checked = true; });
   state.selectedProducts.clear();
   updateProductSummary();
@@ -288,7 +300,7 @@ document.addEventListener("click", event => {
     if (select?.open && !select.contains(event.target)) select.open = false;
   }
 });
-for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely"]) $(id).addEventListener("change", render);
+for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely", "filter-review"]) $(id).addEventListener("change", render);
 $("smart-search-form").addEventListener("submit", event => event.preventDefault());
 $("smart-search").addEventListener("input", event => {
   state.searchQuery = event.target.value.trim();

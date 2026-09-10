@@ -4,6 +4,71 @@ export const ACTIONS = RISK_MODEL.actionLabels;
 export const LIKELIHOOD = RISK_MODEL.likelihoodLabels;
 export { isCriticalPreAuthNetworkRce };
 
+export const PRIORITY_LABELS = Object.freeze({
+  "Immediate": "Emergency",
+  "Out-of-cycle": "Expedited",
+  "Scheduled": "Normal scheduled",
+  "Defer and review": "No customer action",
+});
+
+export function formatPriority(action) {
+  return PRIORITY_LABELS[action] || action;
+}
+
+export function formatPriorityText(value) {
+  return String(value ?? "")
+    .replace(/\bdefer and review\b/gi, "No customer action")
+    .replace(/\bout[- ]of[- ]cycle\b/gi, "Expedited")
+    .replace(/\bimmediate\b/gi, "Emergency")
+    .replace(/\b(?<!normal )scheduled\b(?=\s+(?:remediation|patching|patch|action|handling|cadence|updating|updates?|rather|because|while|given|pending|despite)|\s*[.;,]|$)/gi, "Normal scheduled");
+}
+
+export function publicProfile(record, selectedMitigations = new Set()) {
+  const profile = predictProfile(record, selectedMitigations);
+  return {
+    ...profile,
+    baseline: { ...profile.baseline, action: formatPriority(profile.baseline.action) },
+    residual: { ...profile.residual, action: formatPriority(profile.residual.action) },
+    reasons: profile.reasons.map(formatPriorityText),
+  };
+}
+
+export function reviewStatus(record) {
+  const reasons = [];
+  const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
+  if (record.customer_action_required === false) return { required: false, reasons };
+  const framework = record.inference?.framework_assessment;
+  if (!framework || record.inference?.model === "none") {
+    add("missing-assessment", "Obtain an inference assessment for this CVE.");
+  } else {
+    const uncertainty = framework.factors?.uncertainty || "";
+    if (framework.confidence === "low") add("low-confidence", "Check the assessment's low-confidence conclusion.", uncertainty);
+    const conflict = /\b(?:conflicts?|conflicting|contradict\w*|inconsisten\w*|discrepanc\w*|tension)\b/i;
+    const interpretationOnly = /simplistic|simple .{0,25}interpretation|EPSS signal conflicts|Critical severity.*CVSS|between Critical severity and|privileges-required value conflicts with the FAQ.s authorized-user SQL Copilot workflow|CVSS says no user interaction while the FAQ describes file opening or preview rendering/i;
+    if (conflict.test(uncertainty) && !interpretationOnly.test(uncertainty)) {
+      add("guidance-discrepancy", "Check the reported discrepancy in exploit, impact or product guidance.", uncertainty);
+    }
+    const remediation = framework.factors?.remediation_context || "";
+    const unavailable = /\bunavailable\b|\bnot (?:immediately |currently )?available\b|\bupdates? (?:are |remain |is )?pending\b|\bno (?:immediate |currently available )?(?:security )?update (?:is )?(?:provided|stated)\b|does not state that.{0,80}updates? (?:are |is )?(?:immediately )?available/i;
+    const missingFix = /\bno remediation (?:entry|is supplied)|(?:update|patch|fix) (?:path|version|availability).{0,25}(?:not specified|unknown|not documented)/i;
+    if (unavailable.test(remediation) || missingFix.test(remediation)) {
+      add("update-availability", "Confirm update availability for your affected product/version.", remediation);
+    }
+    const base = baselineProfile(record);
+    if (base.likelihood > LIKELIHOOD.indexOf(framework.baseline_likelihood)) {
+      add("changed-threat-evidence", "Recheck the explanation against the newer threat evidence.");
+    }
+    if (base.action === 3 && base.likelihood < 2) {
+      add("workload-priority", "Confirm the workload role and exposure supporting Emergency priority.", framework.factors?.workload_context || "");
+    }
+  }
+  if (record.cvss?.base_score == null || ["vector", "privileges_required", "user_interaction"].some(key => !record.attack?.[key] || record.attack[key] === "unknown")) {
+    add("incomplete-prerequisites", "Confirm the missing CVSS or exploit-prerequisite details.");
+  }
+  if (record.threat?.epss_status === "stale") add("stale-threat-data", "Refresh the stale threat data before relying on the assessment.");
+  return { required: reasons.length > 0, reasons };
+}
+
 export function baselineProfile(record) {
   const threat = record.threat || {};
   const microsoftLikelihood = RISK_MODEL.microsoftLikelihood[threat.exploitation_assessment] ?? RISK_MODEL.microsoftLikelihood.unknown;
@@ -159,6 +224,8 @@ export function normalizeRecord(record) {
     source: record.source || {},
     dataset_provenance: record.dataset_provenance || {},
     inference: record.inference || {},
+    review: record.review || null,
+    priority: record.priority || null,
     assessment: record.assessment || null,
   };
 }
@@ -253,7 +320,11 @@ function fieldMatches(record, field, value, selectedMitigations) {
   if (field === "kev") return Boolean(record.threat?.kev) === ["true", "yes", "1"].includes(query);
   if (field === "cvss") return compareNumber(record.cvss?.base_score, query);
   if (field === "epss") return compareNumber(record.threat?.epss, query);
-  if (field === "action") return predictProfile(record, selectedMitigations).residual.action.toLowerCase().replaceAll(" ", "-") === query.replaceAll(" ", "-");
+  if (field === "action") {
+    const action = predictProfile(record, selectedMitigations).residual.action;
+    return [action, formatPriority(action)].some(label => label.toLowerCase().replaceAll(" ", "-") === query.replaceAll(" ", "-"));
+  }
+  if (field === "review") return reviewStatus(record).required === ["required", "true", "yes", "1"].includes(query);
   if (field === "likelihood") return predictProfile(record, selectedMitigations).residual.likelihood.toLowerCase().replaceAll(" ", "-") === query.replaceAll(" ", "-");
   return null;
 }

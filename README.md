@@ -67,6 +67,10 @@ The refresher downloads FIRST's complete daily CSV and then batch-queries the of
 
 ## Risk assessment contract
 
+The interface and exported assessment profiles use **Emergency**, **Expedited**, and **Normal scheduled**. **No customer action** is a separate vendor disposition for already-mitigated services. Original model records retain their historical action identifiers for audit and backwards compatibility; the public JSONL adds a current `priority` label.
+
+**Review required** is an independent flag, with reasons visible in the table/detail view and exported JSONL. It identifies low-confidence assessments, missing exploit prerequisites, assessment-reported guidance discrepancies, unavailable or unspecified updates, changed/stale threat evidence, and Emergency priorities requiring workload confirmation. Generic deployment uncertainty and already-resolved interpretation differences do not automatically trigger it. Flags do not change patch priorities or mitigation credit. The review-only checkbox or `review:required` search selects flagged records. Additional Codex review is distinguished from model assessment in the detail provenance; not every CVE has received independent manual review.
+
 - Every production record uses an assessment produced by the local inference pass. The deterministic fallback is restricted to locally imported incomplete/experimental data.
 - Microsoft's Exploitability Index is mandatory evidence: Detected maps to Active, More Likely sets an Elevated floor, Less Likely supports Plausible, and Unlikely supports Low Evidence unless stronger evidence is present.
 - CISA KEV or Microsoft-confirmed exploitation overrides the baseline likelihood to Active.
@@ -86,6 +90,7 @@ node tests/engine.test.mjs
 node tests/september_record.test.mjs
 node tests/ui_performance.test.mjs
 node tests/coverage.test.mjs
+node tests/priorities-review.test.mjs
 node scripts/audit-mitigations.mjs
 python tests/test_enrich_cvrf.py
 python tests/test_merge_inference.py
