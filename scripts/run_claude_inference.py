@@ -105,6 +105,12 @@ def batches(records: list[dict], size: int):
 
 
 def invoke(command: list[str], prompt: str, timeout: int) -> tuple[int, str, str]:
+    """The prompt goes on stdin, never argv.
+
+    A 15-record packet is roughly 120KB, which overruns ARG_MAX and fails with
+    OSError [Errno 7] "Argument list too long" before the CLI is even reached.
+    The system prompt is written to a file for the same reason.
+    """
     proc = subprocess.run(
         command, input=prompt, encoding="utf-8", errors="replace",
         capture_output=True, timeout=timeout,
@@ -159,7 +165,13 @@ def main() -> None:
         )
         (args.run_dir / f"prompt-{index:03d}.txt").write_text(prompt, encoding="utf-8")
 
-        command = [args.cli, "-p", prompt, "--model", args.model, "--output-format", "json", "--system-prompt", system_prompt]
+        system_prompt_path = args.run_dir / "system-prompt.txt"
+        if not system_prompt_path.exists():
+            system_prompt_path.write_text(system_prompt, encoding="utf-8")
+        command = [
+            args.cli, "-p", "--model", args.model, "--output-format", "json",
+            "--system-prompt-file", str(system_prompt_path),
+        ]
         if scaffolded:
             # Schema enforcement is part of the scaffolding under test, so the
             # ablation arm deliberately runs without it.
@@ -167,7 +179,7 @@ def main() -> None:
 
         call_started = datetime.now(timezone.utc).isoformat()
         try:
-            code, stdout, stderr = invoke(command, "", args.timeout)
+            code, stdout, stderr = invoke(command, prompt, args.timeout)
         except subprocess.TimeoutExpired:
             code, stdout, stderr = -1, "", f"timeout after {args.timeout}s"
         call_finished = datetime.now(timezone.utc).isoformat()
