@@ -10,7 +10,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 RISK_MODEL_VERSION = "2026.09.1"
-BASELINE_MODELS = {"no-customer-action", "active-exploitation", "critical-preauth-network-rce", "critical-technical", "elevated-high-severity", "standard-remediation"}
+# Must stay in step with RISK_MODEL.baselineModels in risk-model.js. A vocabulary
+# that drifts between the Python validator and the JS engine fails silently: the
+# model asserts a baseline the validator rejects, or the engine selects one the
+# schema never allowed.
+BASELINE_MODELS = {"no-customer-action", "active-exploitation", "critical-preauth-network-rce", "critical-technical", "elevated-high-severity", "standard-remediation", "unknown-severity"}
 LIKELIHOODS = ["Low evidence", "Plausible", "Elevated", "Active"]
 ACTIONS = ["Defer and review", "Scheduled", "Out-of-cycle", "Immediate"]
 REQUIRED_FACTORS = {"applicability", "threat_evidence", "exploitability", "technical_impact", "workload_context", "remediation_context", "uncertainty"}

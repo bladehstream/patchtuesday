@@ -618,13 +618,29 @@ Claude subagent are the same shape: local invocation, captured response file, lo
 computed hash. The existing provenance fields carry over honestly; nothing needs
 synthesising.
 
-**The one capability that does not carry over is schema enforcement.** Codex was
-invoked with `--output-schema`, so the response was structurally constrained before
-it reached the script, which then hard-failed if the returned CVE set did not match
-the requested set exactly. A subagent returns text. The adapter must therefore
-validate strictly against the same JSON schema, retry within the bounded-failure
-limits of section 3, and **record a malformed response as a failure rather than
-repairing it**. This matters more with a smaller model, not less.
+**Corrected again 2026-09-10, after testing rather than assuming.** A previous
+revision claimed schema enforcement was the one capability that would not carry
+over. It does. The Claude CLI takes `--json-schema` - the direct equivalent of
+Codex's `--output-schema` - and returns parsed output in a `structured_output`
+field. Verified against `claude --model haiku`.
+
+Two further things the test settled, both of which had been guessed:
+
+- **`model_served` is assertable after all.** The CLI's JSON output carries a
+  `modelUsage` block naming the model that served the call
+  (`claude-haiku-4-5-20251001`, canonical `claude-haiku-4-5`, provider
+  `firstParty`), along with session id, token counts and cost. The adapter records
+  it. The earlier instruction to leave it null was over-cautious.
+- **`--exclude-dynamic-system-prompt-sections` silently breaks `--json-schema`.**
+  With it, `structured_output` comes back null while the call reports success.
+  Isolated by testing each flag separately: both `--system-prompt` and
+  `--append-system-prompt` work fine with schema enforcement on their own. Do not
+  add that flag. This is exactly the class of failure the harness is meant to catch
+  and would have been invisible in a summary metric.
+
+The adapter still records a malformed or schema-invalid response as a measure-1
+failure rather than repairing it. Schema enforcement being available does not mean
+it always succeeds, and its failure rate under a weaker model is the measurement.
 
 Further: the configured model identifier is assertable; the serving model is not.
 This environment's own guidance is that the serving model can differ from the
