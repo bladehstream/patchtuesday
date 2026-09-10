@@ -65,6 +65,22 @@ carriage returns before assuming the change is real:
 - **No customer data in inference.** No hostnames, IPs, tenant identifiers,
   inventories or topology. Public advisory material only.
 
+## Inference providers
+
+The project is portable across inference providers. Claude Sonnet subagents are one
+implementation, not an assumption.
+
+- `scripts/run_luna_inference.py` and `scripts/collect_full_inference.py` are
+  Luna-specific. Do not run them for another provider and never relabel output to
+  pass their provenance checks.
+- A provider adapter records what actually exists. A subagent invocation has no HTTP
+  receipt, so record the invocation id, configured model, session and timestamps
+  plus locally computed hashes of the exact prompt and response. Do not synthesise
+  `response_sha256`-style fields that only exist for a metered API.
+- `model_configured` is assertable; `model_served` is not, because the serving model
+  can differ from the configured one. Leave it null rather than guessing. Same rule
+  as the source data: highlight what is missing, never inherit a fabricated value.
+
 ## Data pipeline
 
     fetch_sources.py → enrich_cvrf.py → merge_inference.py → publish_month.py → build-pages.mjs

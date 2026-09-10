@@ -457,6 +457,11 @@ These are not blocked on research. They need a call.
    assessments. Re-run all, re-run only affected, or publish mixed-vintage with
    explicit `assurance` provenance?
 
+   Partly answered 2026-09-10: re-inference is performed by Claude Sonnet subagents,
+   so cost is not the constraint on this choice. The remaining question is
+   epistemic, not economic - whether a mixed-vintage dataset is honest enough to
+   publish given the `assurance` object now records which claim was made when.
+
 ---
 
 ## Unverified items carried forward
@@ -476,6 +481,152 @@ Flagged so they are not mistaken for established fact:
 - Component extraction from CVE description prose is a heuristic (~90%), not a
   contract. Do not build filtering logic that assumes correctness.
 
+
+---
+
+## Autonomous execution contract
+
+Recorded 2026-09-10, before this plan is handed over as a `/goal` for unattended
+execution. The acceptance criteria above describe what correct looks like. This
+section covers what to do when correct turns out to be unreachable, which is where
+unattended runs actually cause damage.
+
+### 1. Halt, do not weaken
+
+If an acceptance criterion cannot be met, **stop and report**. Do not relax the
+criterion, disable or skip a test to reach green, or narrow a check until it passes.
+
+Every failure this project has already warned about is an instance of this rule
+being broken under pressure: `--include-unreviewed` to conceal missing inference,
+labelling one provider's output as another's to satisfy a provenance check, altering
+`cvss_basis` to satisfy a validator. A blocked phase reported honestly is a good
+outcome. A phase that passes because the bar moved is not.
+
+### 2. Actions requiring a human
+
+Proceed freely on everything except the following, which stop and ask:
+
+- Republishing or overwriting `data/*.jsonl` beyond the corrections a phase declares.
+- Any change to `risk_model_version` or to executable policy in `risk-model.js`.
+- Deleting anything. Deletion is enabled in this folder for convenience with git;
+  that is not licence to remove content.
+- `git push`. The bridge has no network and pushing is Bob's, per `CLAUDE.md`.
+- Changing what the tool asserts to an administrator - see the Phase 1.1 carve-out
+  in section 10.
+
+### 3. No cost ceiling; bounded failure instead
+
+There is no token or wall-clock budget. Inference is performed by Claude Sonnet
+subagents rather than a metered external API, so cost is not the limiting factor.
+
+Unbounded is not unlimited. The real risk is a loop that retries forever, so:
+
+- Three attempts at any single failing item, then halt and report it.
+- No unbounded retry of a failing fetch. Two attempts, then report the source as
+  unavailable and continue with what is reachable.
+- Progress must be demonstrable per phase. A phase with no completed acceptance
+  criterion after a full pass halts rather than continuing to churn.
+
+### 4. Every gate needs a fixture it rejects
+
+Generalised from Phase 1.6. For every validator, guard or assertion added: build a
+case it **fails**, confirm it fails before the fix and passes after, and keep that
+fixture. A gate that has never rejected anything is not known to be a gate.
+
+This is the highest-value condition on this list, because the same agent writing a
+check and confirming the check works is otherwise worth very little.
+
+### 5. Pinned regression baseline
+
+Before starting, snapshot every record's computed action and likelihood to
+`work/goal-baseline/`. On completion, produce a diff report of every record whose
+action or likelihood changed, each with a stated reason.
+
+**Unexplained movement fails the phase.** This is the only mechanism that
+distinguishes "fixed the defect" from "changed the answers".
+
+### 6. Independence boundary
+
+**Phase 1.7 is not autonomisable and must not be attempted unattended.** It calls
+for a fresh *independent* calibration holdout. An agent that draws the sample, makes
+the judgements and then scores itself against them has produced a circular result
+wearing the label of an independent one - the exact confusion this plan exists to
+remove.
+
+What may be done unattended: build the stratification mechanism, draw the candidate
+sample, and prepare the scoring harness. The judgements come from Bob or another
+reviewer. Stop there and say so.
+
+### 7. Definition of done for the goal
+
+The goal is complete when **all** of the following hold:
+
+1. Every Phase 0 and Phase 1 acceptance criterion passes, except 1.7, which is
+   handed back per section 6.
+2. `npm test` and `python -m pytest tests/` both pass.
+3. `npm run build` succeeds.
+4. The working tree is clean and every change is committed.
+5. The regression diff report exists and contains no unexplained rating changes.
+6. The Phase 3 open decisions are **still open**, listed, and unmade.
+
+Point 6 is deliberate. Deciding them is not part of done; presenting them is.
+
+### 8. Source snapshot is pinned
+
+Pin `raw/2026-Sep.json` and the KEV/EPSS inputs at the start of the run and work
+against that snapshot throughout. If the live MSRC manifest drifts mid-run - as it
+did on 2026-09-10, adding CVE-2026-85046 - **report the drift, do not absorb it**.
+A source set that changes underneath a run makes the regression baseline in section
+5 meaningless.
+
+Taken as the default because an unattended run cannot judge whether a mid-run change
+is benign. Revisit if Bob prefers otherwise.
+
+### 9. Commit granularity
+
+One commit per plan item, subject line naming the item, so `git log` reads as the
+plan's progress. Bob reviews after the fact; a single large commit is not
+reviewable. Repo-local commit identity per `CLAUDE.md`.
+
+### 10. Provider portability and honest provenance
+
+The project is intended to be portable across inference providers. Claude Sonnet
+subagents are **one implementation** of the provider interface, not an assumption
+baked into it.
+
+- `scripts/run_luna_inference.py` and `scripts/collect_full_inference.py` remain
+  unused for any non-Luna provider. They carry Luna-specific model and provenance
+  checks and a Luna-specific response schema. Never relabel output to pass them.
+- A new provider adapter is defined by the fields it must produce, not by who
+  produces them: prompt, response, model identifier, timestamps, per-CVE coverage.
+
+**The honesty problem this creates, stated explicitly.** The Luna path recorded
+`response_sha256`, `input_sha256` and a batch filename because it made HTTP calls to
+a metered API. A subagent invocation has no such receipt. The adapter must record
+what actually exists - invocation identifier, configured model, session, timestamps,
+and locally computed hashes of the exact prompt and response - and must **not**
+synthesise fields that only exist for an HTTP API.
+
+Further: the configured model identifier is assertable; the serving model is not.
+This environment's own guidance is that the serving model can differ from the
+configured one. Record `model_configured` and leave `model_served` null rather than
+guessing. This is the plan's own rule - highlight missing source values instead of
+inheriting a fabricated one - applied to our own provenance rather than to
+Microsoft's.
+
+### 11. Phase scope for unattended execution
+
+| Item | Unattended? |
+|---|---|
+| 0.x (all) | Yes - already complete |
+| 1.1 Vendor-plural severity schema | **No.** Produce the schema and a worked example against a handful of records, then stop. It changes what the tool asserts to an administrator |
+| 1.2 CVSS provenance labelling | Yes for the mechanical half - adding and populating `cvss.source`. Presentation changes stop with 1.1 |
+| 1.3 Assurance object | Yes |
+| 1.4 Action vocabulary as data | Yes, except the `Defer and review` rename, which is Phase 3 decision 1 |
+| 1.5 Freshness / manifest diff | Yes - already complete |
+| 1.6 Validators | Yes |
+| 1.7 Calibration holdout | **No** - see section 6 |
+| Phase 2 | Deferred entirely |
 
 ---
 
