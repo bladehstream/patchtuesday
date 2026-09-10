@@ -649,6 +649,129 @@ Microsoft's.
 
 ---
 
+## Scaffolding resilience trial
+
+Designed 2026-09-10, superseding the earlier "compare Haiku with Luna" framing,
+which was abandoned because agreement between two models measures neither one's
+correctness.
+
+### The question
+
+**Does the scaffolding carry a weaker model to defensible output?**
+
+Not "is Haiku as good as Luna". The scaffolding - the guidance in `prompts/`, the
+seven mandatory factors, the required evidence fragments, the output schema, and the
+validators - exists to do the heavy lifting so that the model's remaining job is
+judgement it can support with citations. The claim under test is that this holds
+across model capability. Haiku is chosen deliberately as the weak arm.
+
+### Why an ablation is required
+
+A model comparison cannot establish anything about scaffolding, because there is no
+arm in which the scaffolding is absent. The design therefore needs a condition
+without it:
+
+| Arm | Model | Scaffolding | Purpose |
+|---|---|---|---|
+| A | Haiku | Full | The claim: weak model, strong scaffolding |
+| B | Haiku | Minimal prompt | Ablation. Isolates the scaffolding's contribution |
+| C | Luna (Codex CLI) | Full | Cross-vendor. Does the scaffolding hold outside one family |
+| D | Opus | Full, pre-committed | Reference judgements for adjudication, not a score |
+
+If A approaches C while B is materially worse, the scaffolding is doing the work.
+If A and B are indistinguishable, the scaffolding is decorative and the guidance
+needs rewriting rather than the model replacing. **That second outcome is the one
+worth running the trial to discover**, and it must be reportable without hedging.
+
+### What is measured
+
+Not agreement. A weak model's dangerous failure is not disagreeing with a stronger
+one - it is fluent reasoning with nothing behind it. Five measures, the first two
+automated at full scale, the rest scored on the stratified sample:
+
+1. **Schema conformance** - first-pass valid output against the run schema, before
+   any retry. Directly tests whether structural scaffolding survives a weaker model,
+   and is the capability Codex's `--output-schema` provided and subagents do not.
+2. **Validator catch rate** - of the errors present, how many did the pipeline's own
+   gates catch? **Undetected error is the only failure that matters.** A methodology
+   is resilient when a weak model's mistakes are caught, not when it makes none.
+3. **Evidence-groundedness** - does every claim in the seven factors, and every
+   asserted impact, delivery and workload tag, trace to text in the supplied
+   advisory? Scored per claim.
+4. **Fabrication rate** - claims contradicted by, or simply absent from, the source.
+   The dangerous measure, and the one an agreement metric hides entirely.
+5. **Abstention correctness** - rule 6 of the enrichment contract requires `unknown`
+   when evidence is insufficient. A weak model that guesses confidently is worse
+   than one that declines. Measured as: of records where the source genuinely does
+   not settle the question, how many abstained?
+
+### Stratification
+
+Uniform sampling across 1,185 records produces a number dominated by routine
+advisories and tells you nothing. The scored sample is stratified, and the hard
+cohort is reported **separately and first**:
+
+- The known-difficult cases: the Undici outbound-vs-inbound direction call, the
+  Exchange/DHCP scope questions, the `PR:H` PAM consistency issue.
+- The 23 `Unknown` severity records, where the vendor published nothing.
+- The 4 records flagged `missing-impact-judgement`, where Luna asserted no impact at
+  all on a pre-authentication network vulnerability at CVSS 9 or above.
+- A routine cohort of comparable size, as the control.
+
+### Pre-registered falsification
+
+Recorded before the run, so the result cannot be reinterpreted afterwards. The
+scaffolding claim **fails** if any of these hold on the hard cohort:
+
+- Arm A's fabrication rate exceeds 5% of scored claims.
+- Arm A's validator catch rate is below 90% - that is, more than one error in ten
+  passes every gate undetected.
+- Arm A is not materially better than arm B. "Materially" is a gap the adversarial
+  scorer will state and defend, not a threshold invented after seeing the data.
+
+Any of those is a finding about the guidance, not about Haiku.
+
+### Execution order and independence
+
+Ordering is enforced by commit history, not by assertion:
+
+1. Arm D judgements produced and **committed** before any other arm runs. Their
+   timestamp in `git log` is the independence evidence.
+2. Full Haiku run, arms A and B, 1,185 records each, mirroring Luna's 15-record
+   batch size so batching is not confounded with capability. Automated measures 1
+   and 2 computed at full scale.
+3. Arm C re-run under the current guidance, since the published Luna data predates
+   revision 2026.09.2.
+4. Independent scorer, spawned with an adversarial prompt, **blind to which arm
+   produced which output**, scoring measures 3 to 5 on the stratified sample. Its
+   task is to find claims the evidence does not support and divergences no gate
+   caught - not to rank the arms.
+5. Divergences the scorer surfaces go to Bob for adjudication. Nothing in this trial
+   treats any arm as ground truth.
+
+### Constraints
+
+- All output under `work/scaffolding-trial/`. **Nothing here replaces published
+  data**, per `CLAUDE_ASSESSOR_HANDOFF.md`.
+- Provider adapters record what actually exists - invocation id, configured model,
+  session, timestamps, local hashes of exact prompt and response. No synthesised
+  receipts. `model_served` stays null.
+- A malformed response is recorded as a failure of measure 1, never repaired.
+  Repairing it would convert the exact capability gap under test into apparent
+  success.
+- Bounded failure per section 3 of the execution contract.
+
+### A prediction worth recording
+
+Moving platform and release tags out of the model reduced its clerical load - it was
+being asked to enumerate products a dict lookup gets right more often. The
+expectation is that this helps arm A more than arm C, because a weaker model has
+less attention to spare on busywork. If arm A's judgement quality does **not**
+improve relative to the pre-change Luna baseline, that prediction is wrong and
+should be reported as wrong.
+
+---
+
 ## Environment blockers (2026-09-10)
 
 Two operations could not be completed from this session because the sandbox

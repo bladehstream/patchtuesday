@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { parseJsonl, predictProfile, reviewStatus, frameworkIsUsable } from "../engine.js";
+import { parseJsonl, predictProfile, reviewStatus, frameworkIsUsable, missingImpactJudgement } from "../engine.js";
 import fsSync from "node:fs";
 
 const records = parseJsonl(fs.readFileSync(new URL("../data/2026-Sep.jsonl", import.meta.url), "utf8"));
@@ -73,4 +73,28 @@ const brokenStatus = reviewStatus(broken);
 assert.ok(brokenStatus.required, "an unusable assessment must require review");
 assert.ok(brokenStatus.reasons.some(reason => reason.code === "unusable-assessment"), "an unusable assessment must carry the unusable-assessment reason");
 
+// The gate must reject something. A synthetic pre-auth network record at CVSS 9.8
+// with no impact tag is exactly the shape that silently loses the
+// critical-preauth-network-rce floor, so it must flag.
+const untagged = {
+  ...records[0],
+  cvss: { base_score: 9.8, temporal_score: null, vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", version: "3.1" },
+  attack: { vector: "network", privileges_required: "none", user_interaction: "none" },
+  tags: [],
+  customer_action_required: true,
+};
+assert.ok(missingImpactJudgement(untagged), "an untagged pre-auth network 9.8 must be detected");
+assert.ok(reviewStatus(untagged).reasons.some(reason => reason.code === "missing-impact-judgement"), "detection must raise a review reason");
+
+// And it must NOT fire once the assessor has actually asserted an impact.
+assert.equal(missingImpactJudgement({ ...untagged, tags: ["remote-code-execution"] }), false, "an asserted impact tag must clear the flag");
+assert.equal(missingImpactJudgement({ ...untagged, cvss: { ...untagged.cvss, base_score: 6.5 } }), false, "the flag is scoped to high severity");
+assert.equal(missingImpactJudgement({ ...untagged, attack: { ...untagged.attack, privileges_required: "high" } }), false, "the flag is scoped to pre-authentication access");
+
+const liveUntagged = records.filter(missingImpactJudgement);
+for (const item of liveUntagged) {
+  assert.ok(reviewStatus(item).required, `${item.cve} has no impact judgement and must require review`);
+}
+
+console.log(`  ${liveUntagged.length} records flagged for missing impact judgement: ${liveUntagged.map(item => item.cve).join(", ")}`);
 console.log(`September CVE regression test passed (${records.length} records, ${unknowns.length} Unknown severity)`);

@@ -33,6 +33,28 @@ export function publicProfile(record, selectedMitigations = new Set()) {
   };
 }
 
+const IMPACT_TAGS = new Set([
+  "remote-code-execution", "elevation-of-privilege", "security-feature-bypass",
+  "information-disclosure", "denial-of-service", "spoofing",
+]);
+
+// A high-severity, pre-authentication, network-reachable record with no impact tag
+// at all means the assessor asserted no judgement about what the vulnerability
+// does. Since impact tags gate the critical-preauth-network-rce archetype and its
+// higher remediation floor, an untagged record of this shape silently loses that
+// floor the moment exploitation evidence rises. Flag it rather than let a missing
+// judgement read as an assessed one.
+export function missingImpactJudgement(record) {
+  const baseScore = record.cvss?.base_score;
+  const attack = record.attack || {};
+  return typeof baseScore === "number"
+    && baseScore >= 9
+    && attack.vector === "network"
+    && attack.privileges_required === "none"
+    && attack.user_interaction === "none"
+    && !(record.tags || []).some(tag => IMPACT_TAGS.has(tag));
+}
+
 export function frameworkIsUsable(framework) {
   return Boolean(framework)
     && framework.risk_model_version === RISK_MODEL.version
@@ -50,6 +72,13 @@ export function reviewStatus(record) {
       "missing-vendor-severity",
       "The vendor published no severity rating and no CVSS score. Establish the real severity before deciding.",
       "Common for Chromium passthrough advisories, where Microsoft defers to the upstream vendor.",
+    );
+  }
+  if (missingImpactJudgement(record)) {
+    add(
+      "missing-impact-judgement",
+      "No impact tag was asserted for a high-severity, pre-authentication, network-reachable vulnerability. Establish what it actually does before relying on the remediation floor.",
+      `base_score=${record.cvss?.base_score} vector=${record.attack?.vector} privileges_required=${record.attack?.privileges_required} user_interaction=${record.attack?.user_interaction}`,
     );
   }
   const framework = record.inference?.framework_assessment;
