@@ -1,0 +1,609 @@
+{
+  "reviewer": "Codex",
+  "reviewed_at": "2026-09-10",
+  "scope": "Explicit source-grounded QA corrections after genuine full-release Luna model inference; original responses retained by invocation digest.",
+  "corrections": {
+    "CVE-2026-72961": {
+      "reason": "Remove an already-ignored low-confidence network-isolation proposal that does not match the local/physical source attack vector.",
+      "assessment_updates": {},
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "The source attack requires local or physical access. The network-isolation catalogue entry does not establish removal of that prerequisite; no quantified effect is supported."
+        }
+      }
+    },
+    "CVE-2026-72985": {
+      "reason": "Remove an already-ignored low-confidence network-isolation proposal that does not match the local/physical source attack vector.",
+      "assessment_updates": {},
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "The source attack requires local or physical access. The network-isolation catalogue entry does not establish removal of that prerequisite; no quantified effect is supported."
+        }
+      }
+    },
+    "CVE-2026-77892": {
+      "reason": "Remove an already-ignored low-confidence network-isolation proposal that does not match the local/physical source attack vector.",
+      "assessment_updates": {},
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "The source attack requires local or physical access. The network-isolation catalogue entry does not establish removal of that prerequisite; no quantified effect is supported."
+        }
+      }
+    },
+    "CVE-2026-69548": {
+      "reason": "The catalogue's isolation/airgap option is a network control and does not establish physical-access or device-port prevention.",
+      "assessment_updates": {
+        "risk_communication": {
+          "control_limitations": "The documented physical attack requires verified physical-access or device restrictions. Generic network isolation does not establish that protection, and the current catalogue assigns it no credit."
+        }
+      },
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Network isolation or an airgap does not establish physical access/device restrictions required to interrupt this physical attack path; no quantified credit for this catalogue selection."
+        }
+      }
+    },
+    "CVE-2026-71349": {
+      "reason": "The catalogue's isolation/airgap option is a network control and does not establish physical-access or device-port prevention.",
+      "assessment_updates": {
+        "risk_communication": {
+          "control_limitations": "The documented physical attack requires verified physical-access or device restrictions. Generic network isolation does not establish that protection, and the current catalogue assigns it no credit."
+        }
+      },
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Network isolation or an airgap does not establish physical access/device restrictions required to interrupt this physical attack path; no quantified credit for this catalogue selection."
+        }
+      }
+    },
+    "CVE-2026-78508": {
+      "reason": "The catalogue's isolation/airgap option is a network control and does not establish physical-access or device-port prevention.",
+      "assessment_updates": {
+        "risk_communication": {
+          "control_limitations": "The documented physical attack requires verified physical-access or device restrictions. Generic network isolation does not establish that protection, and the current catalogue assigns it no credit."
+        }
+      },
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Network isolation or an airgap does not establish physical access/device restrictions required to interrupt this physical attack path; no quantified credit for this catalogue selection."
+        }
+      }
+    },
+    "CVE-2026-69806": {
+      "reason": "Map the documented Linux namespace/proc prerequisite to configuration hardening, not network isolation.",
+      "assessment_updates": {
+        "risk_communication": {
+          "control_limitations": "Credit requires verified process-namespace separation or proc visibility restrictions that remove the documented shared-user prerequisite. A generic network airgap does not provide that configuration."
+        }
+      },
+      "mitigation_updates": {
+        "isolation_airgap": {
+          "id": "protocol_hardening",
+          "relevance": "relevant",
+          "confidence": "medium",
+          "effect": {
+            "likelihood_steps": 1,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "The Microsoft FAQ requires a shared Linux process-ID namespace and proc information exposed to other local users. Credit only verified namespace or proc configuration that removes that prerequisite; no vendor-supported exact path block or impact reduction is claimed."
+        }
+      }
+    },
+    "CVE-2026-78461": {
+      "reason": "EPSS 1.059% is Plausible, not Elevated. Retain accelerated handling as a Workspace Trust boundary-impact judgment.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation Less Likely, EPSS is 1.059% on 2026-09-09, and KEV/detected exploitation are absent. The EPSS threshold supports Plausible rather than Elevated."
+        },
+        "risk_communication": {
+          "why_this_action": "Bypassing Workspace Trust can expose local files and allow untrusted commands in a developer workflow. Retain out-of-cycle updating for that boundary impact; the public threat band is Plausible, not an EPSS-driven Elevated rating."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-78510": {
+      "reason": "The Immediate archetype lacks elevated threat evidence; opening and automatic preview are alternative triggers, not a proven contradiction with UI:N.",
+      "assessment_updates": {
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "confidence": "medium",
+        "factors": {
+          "exploitability": "CVSS AV:N/AC:L/PR:N/UI:N is preserved. The FAQ describes malicious RTF opening or preview rendering; automatic preview can explain exploitation without explicitly opening the document.",
+          "uncertainty": "Exact preview and delivery conditions require product-specific verification, and the source states that Office LTSC for Mac 2021/2024 updates are not immediately available."
+        },
+        "risk_communication": {
+          "why_this_action": "Critical RTF parser code execution, including preview exposure, warrants out-of-cycle remediation. Microsoft Less Likely and EPSS 0.954% do not establish the elevated-evidence Immediate archetype; track Mac update availability separately.",
+          "reassessment_triggers": [
+            "Microsoft revises preview-trigger details or affected-product guidance",
+            "Availability of the pending Mac LTSC updates",
+            "Confirmed exploitation or KEV listing"
+          ]
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-72943": {
+      "reason": "Microsoft Unlikely and EPSS 0.618% do not establish Plausible; retain the model's authenticated race-condition Scheduled judgment.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-72979": {
+      "reason": "Critical pre-authentication RCE establishes accelerated remediation, but the Immediate archetype also requires elevated threat evidence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "risk_communication": {
+          "why_this_action": "Unauthenticated DHCP packet-triggered code execution has Critical impact and warrants out-of-cycle remediation. Microsoft Less Likely and EPSS 0.991% do not establish the elevated-evidence condition for a mandatory Immediate baseline."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-72982": {
+      "reason": "Correct the public threat band and archetype, while retaining the model's precautionary Immediate priority for potentially concentrated identity impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence",
+        "baseline_model": "critical-technical",
+        "confidence": "medium",
+        "factors": {
+          "workload_context": "Netlogon is identity-related infrastructure. Domain-controller compromise could have broad consequences, but the affected-product list also includes clients and does not establish that every affected asset is a domain controller."
+        },
+        "risk_communication": {
+          "why_this_action": "Retain precautionary Immediate triage because unauthenticated Netlogon code execution can affect identity infrastructure. This is a workload-impact judgment, not elevated exploitation evidence or a rule imposed by CVSS; verify the actual service role and reachability."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69285": {
+      "reason": "Preview Pane exposure does not establish that Protected View prevents the Office parser flaw.",
+      "assessment_updates": {
+        "confidence": "medium",
+        "risk_communication": {
+          "control_limitations": "Only verified blocking of the crafted-file delivery route receives preventive credit. The supplied FAQ does not establish that Protected View prevents the vulnerable parser from processing preview content."
+        }
+      },
+      "mitigation_updates": {
+        "office_protected_view": {
+          "relevance": "unknown",
+          "confidence": "low",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Microsoft identifies crafted-file and Preview Pane exposure, but supplies no specific Protected View or file-policy setting proven to prevent this heap overflow. No quantified credit is supported."
+        }
+      }
+    },
+    "CVE-2026-69586": {
+      "reason": "Correct EPSS 0.996% (below 1%, not Elevated), remove the unsupported Immediate archetype and perimeter credit for an explicit internal attacker.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation Unlikely; EPSS is 0.996% on 2026-09-09, below the 1% Plausible threshold. KEV and detected exploitation are absent.",
+          "exploitability": "CVSS AV:N/AC:L/PR:N/UI:N is preserved; the FAQ specifically describes an in-network attacker calling endpoints."
+        },
+        "risk_communication": {
+          "why_this_action": "Critical unauthenticated RCE impact warrants out-of-cycle remediation. The documented internal attack path and Microsoft Unlikely assessment do not establish the elevated-evidence Immediate archetype."
+        }
+      },
+      "mitigation_updates": {
+        "remove_external_exposure": {
+          "relevance": "not-relevant",
+          "confidence": "high",
+          "effect": {
+            "likelihood_steps": 0,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Removing public ingress leaves the FAQ's explicit in-network attacker able to call the vulnerable endpoints; no credit for this documented route."
+        }
+      }
+    },
+    "CVE-2026-69592": {
+      "reason": "Microsoft Unlikely and EPSS 0.318% provide no additional evidence for Plausible; retain the model's local-prerequisite Scheduled judgment.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69595": {
+      "reason": "EPSS 1.064% supports Plausible rather than Elevated; the Immediate archetype's threat-evidence condition is absent.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation Less Likely. EPSS is 1.064% on 2026-09-09, supporting Plausible but below the 10% Elevated threshold; KEV and detected exploitation are absent."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated packet-triggered code execution on a shared NFS server has Critical impact and warrants out-of-cycle remediation. Current threat evidence is Plausible, so the Immediate archetype is not required."
+        }
+      },
+      "mitigation_updates": {
+        "remove_external_exposure": {
+          "evidence": "The FAQ describes a crafted packet to the NFS service. Public-ingress removal receives conditional credit only when such ingress existed and is verified blocked; permitted internal peers remain."
+        }
+      }
+    },
+    "CVE-2026-69760": {
+      "reason": "Correct the 1.149% EPSS band while retaining the model's shared-authentication availability judgment.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation Unlikely; EPSS is 1.149% on 2026-09-09 and supports Plausible, not Elevated, likelihood. KEV and detected exploitation are absent."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated low-complexity Kerberos denial of service can disrupt shared authentication. Out-of-cycle is a precautionary availability-impact judgment; the EPSS band is only Plausible."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69769": {
+      "reason": "Microsoft Unlikely and EPSS 0.909% do not establish Plausible under the recorded evidence framework. Critical impact still warrants Out-of-cycle.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69325": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-67383": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-67386": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-67629": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-67633": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69500": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69504": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69514": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69532": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-77481": {
+      "reason": "The source rates exploitation Unlikely and EPSS is below 1%; the model supplies no additional exploitation evidence for a higher band. Retain its independently reasoned patch cadence.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence"
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69497": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.137% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "An authenticated low-complexity DHCP denial of service can disrupt shared addressing infrastructure. Out-of-cycle is a service-impact judgment; EPSS 1.137% establishes Plausible rather than Elevated likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69587": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.201% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated, low-complexity IKE denial of service warrants precautionary out-of-cycle handling for the affected service. EPSS supports Plausible, not Elevated, likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69631": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.200% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated DNS denial of service can disrupt a shared resolver. Keep out-of-cycle handling for that availability impact, while treating EPSS around 1.2% as Plausible evidence."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69694": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Scheduled",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.693% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "The IPAM escalation requires an existing low-privilege local foothold and high-complexity, environment-dependent exploitation. With Microsoft Unlikely and no confirmed exploitation, scheduled patching is supported; EPSS 1.693% only establishes Plausible likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-70065": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.200% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "A low-complexity, unauthenticated network memory-exhaustion path can disrupt DHCP availability. Retain out-of-cycle handling for shared-service impact; EPSS 1.2% supports only Plausible likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-72932": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.049% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated, low-complexity access to privileged-process heap memory warrants accelerated remediation. This is a confidentiality-impact judgment; EPSS 1.049% supports Plausible likelihood, not Elevated."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-77484": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation less-likely; no KEV or detected exploitation is recorded. EPSS is 1.146% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "Authenticated SQL deserialization can execute code with high confidentiality, integrity and availability impact on a shared database service. That impact supports out-of-cycle remediation; EPSS 1.146% and Microsoft Less Likely support Plausible likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-77494": {
+      "reason": "Correct the EPSS threshold error: 1% is Plausible and 10% is Elevated; reassess action separately using the documented prerequisites and workload impact.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "standard-remediation",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft rates exploitation unlikely; no KEV or detected exploitation is recorded. EPSS is 1.200% on 2026-09-09, supporting Plausible likelihood; it is below the 10% Elevated threshold."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated network type confusion can disrupt DHCP availability. Retain out-of-cycle handling for the shared-service impact; EPSS 1.2% does not cross the Elevated threshold."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69579": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is unlikely; KEV and detected exploitation are absent. EPSS is 0.975% on 2026-09-09. This supports Low evidence; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated crafted packets can exploit Message Queuing with Critical impact. Keep out-of-cycle remediation; Microsoft Unlikely and EPSS 0.975% provide no elevated threat evidence or confirmed exploitation."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-69819": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is less-likely; KEV and detected exploitation are absent. EPSS is 0.928% on 2026-09-09. This supports Plausible; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "An in-network attacker can exploit RPC endpoints with Critical impact and no authentication. Out-of-cycle remediation is justified; the RCE archetype cannot itself raise Microsoft Less Likely and EPSS 0.928% to Elevated."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-73009": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is less-likely; KEV and detected exploitation are absent. EPSS is 0.909% on 2026-09-09. This supports Plausible; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated crafted SSTP packets can execute code without user interaction. Critical impact supports out-of-cycle remediation; Microsoft Less Likely and EPSS 0.909% do not establish the elevated-evidence condition for the Immediate archetype."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-73010": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is less-likely; KEV and detected exploitation are absent. EPSS is 0.909% on 2026-09-09. This supports Plausible; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "Unauthenticated crafted packets can compromise the Failover Cluster component and clustered workloads. Out-of-cycle is the baseline pending verified exposure or stronger threat evidence; CVSS 9.8 alone does not mandate Immediate."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-73025": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Low evidence",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is unlikely; KEV and detected exploitation are absent. EPSS is 0.921% on 2026-09-09. This supports Low evidence; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "The documented CHAP bypass permits unauthorized mapped-storage access with Critical impact. Out-of-cycle remediation is warranted. This is a security-feature bypass, not established RCE; Microsoft Unlikely and EPSS 0.921% do not establish elevated exploitation likelihood."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-85504": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is unknown; KEV and detected exploitation are absent. EPSS is 0.388% on 2026-09-09. This supports Plausible; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "The FreeIPMI stack overflow is triggered while parsing malformed device responses. Critical impact warrants out-of-cycle remediation, but the snapshot lacks confirmed exploitation, elevated forecasts or evidence of a public listening service."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-85507": {
+      "reason": "Correct an unsupported Immediate-archetype claim without reducing the recorded technical severity.",
+      "assessment_updates": {
+        "baseline_likelihood": "Plausible",
+        "baseline_model": "critical-technical",
+        "baseline_action": "Out-of-cycle",
+        "factors": {
+          "threat_evidence": "Microsoft exploitation status is unknown; KEV and detected exploitation are absent. EPSS is 0.388% on 2026-09-09. This supports Plausible; technical severity alone does not elevate threat likelihood."
+        },
+        "risk_communication": {
+          "why_this_action": "The FreeIPMI ipmi-oem stack overflow arises during Dell CMC response processing. Critical impact warrants out-of-cycle remediation; absent elevated threat evidence, the Immediate pre-authentication RCE archetype is not established."
+        }
+      },
+      "mitigation_updates": {}
+    },
+    "CVE-2026-66820": {
+      "reason": "Removing the documented SQL permissions reduces exploit opportunity, but a successful exploit still grants SQL sysadmin; remove the double-counted consequence credit.",
+      "assessment_updates": {},
+      "mitigation_updates": {
+        "least_privilege_pam": {
+          "effect": {
+            "likelihood_steps": 1,
+            "consequence_steps": 0,
+            "path_block": false
+          },
+          "evidence": "Microsoft requires an authenticated SQL user with explicit permissions. Removing the exact required permission can reduce opportunity if verified; successful exploitation still reaches SQL sysadmin, so no independent consequence reduction is credited."
+        }
+      }
+    }
+  }
+}

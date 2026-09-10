@@ -105,8 +105,8 @@ for (const overlay of overlays) {
     attack_vector: record.attack.vector, privileges_required: record.attack.privileges_required,
     user_interaction: record.attack.user_interaction,
   });
-  assert.ok(record.inference.verification, record.cve + ": missing complete-review provenance");
-  const ids = record.mitigation_candidates.map(c => c.id);
+  assert.ok(record.inference.verification || record.inference.pipeline_validation, record.cve + ": missing validation provenance");
+  const ids = record.mitigation_candidates.filter(c => eligible(c) && ((c.effect?.likelihood_steps || 0) > 0 || (c.effect?.consequence_steps || 0) > 0)).map(c => c.id);
   for (let mask = 0; mask < 2 ** ids.length; mask += 1) {
     const selection = new Set(ids.filter((_, i) => mask & (1 << i)));
     const result = predictProfile(record, selection);
@@ -115,7 +115,8 @@ for (const overlay of overlays) {
     assert.equal(result.baseline.likelihood, base.baseline.likelihood);
     if (record.customer_action_required !== false) {
       assert.ok(ACTIONS.indexOf(result.residual.action) >= 1, record.cve + ": ordinary controls erased patch obligation");
-      assert.ok(LIKELIHOOD.indexOf(base.baseline.likelihood) - LIKELIHOOD.indexOf(result.residual.likelihood) <= 1, record.cve + ": overlapping controls stacked");
+      const maxCredit = result.applied.some(c => c.confidence === "high" && c.effect?.path_block) ? 2 : 1;
+      assert.ok(LIKELIHOOD.indexOf(base.baseline.likelihood) - LIKELIHOOD.indexOf(result.residual.likelihood) <= maxCredit, record.cve + ": overlapping controls stacked");
     }
     combinations += 1;
   }

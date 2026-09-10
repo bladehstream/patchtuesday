@@ -27,6 +27,8 @@ assert.equal(noActionProfile.residual.action, "Defer and review", "Microsoft no-
 
 assert.equal(formatEpss(null), "Not yet scored");
 assert.equal(formatEpss(0.00623), "0.62%");
+assert.equal(formatEpss(0.00996), "0.996%", "Display must not round sub-1% evidence across a policy threshold");
+assert.equal(formatEpss(0.0996), "9.96%", "Display must not imply the 10% threshold was reached");
 assert.equal(formatEpss(0), "0.00%");
 assert.equal(formatMicrosoftAssessment("unlikely"), "Unlikely");
 assert.equal(formatMicrosoftAssessment("unknown"), "Not published");

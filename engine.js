@@ -43,6 +43,7 @@ export function baselineProfile(record) {
     modelId = framework.baseline_model;
     model = RISK_MODEL.baselineModels[modelId];
     reasons.push(`Framework assessment: ${framework.risk_communication?.why_this_action || model.reason}`);
+    if (Array.isArray(framework.policy_adjustments)) reasons.push(...framework.policy_adjustments.filter(reason => typeof reason === "string"));
     if (evidenceLikelihood > LIKELIHOOD.indexOf(framework.baseline_likelihood)) {
       action = Math.max(action, fallbackModel.action);
       modelId = fallbackModelId;
@@ -179,6 +180,12 @@ export function formatEpss(value) {
   if (!Number.isFinite(numeric)) return "Not yet scored";
   const percent = numeric * 100;
   if (percent > 0 && percent < 0.01) return "<0.01%";
+  for (const threshold of [1, 10]) {
+    if (percent < threshold && Number(percent.toFixed(threshold === 1 ? 2 : 1)) >= threshold) {
+      const precise = Number(percent.toFixed(3));
+      return precise < threshold ? `${precise}%` : `<${threshold}%`;
+    }
+  }
   if (percent < 1) return `${percent.toFixed(2)}%`;
   return `${percent.toFixed(1)}%`;
 }

@@ -1,5 +1,7 @@
 # Complete verification of the latest Luna run
 
+Historical 25-record pilot audit. Superseded by the complete 1,185-CVE run documented in 2026-Sep-full-inference.md; retained only as review history.
+
 Reviewed 2026-09-10 by Codex. Scope: all 25 entries in inference/2026-Sep-luna.jsonl, including every factor, CVSS basis, product scope, available description/FAQ, threat snapshot, and mitigation candidate. This is a review of stored evidence (MSRC revision and EPSS date retained in each JSONL record), not a new fetch or a claim that 1,185 CVEs received model inference. The other 1,160 records retain fallback assessments.
 
 ## Findings and changes

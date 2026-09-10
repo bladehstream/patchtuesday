@@ -4,7 +4,7 @@ import { parseJsonl, predictProfile } from "../engine.js";
 
 const records = parseJsonl(fs.readFileSync(new URL("../data/2026-Sep.jsonl", import.meta.url), "utf8"));
 assert.equal(records.length, 1185, "The September page must publish the complete CVRF record set");
-assert.equal(records.filter(item => item.inference?.review_status === "reviewed").length, 25, "Luna review coverage must remain explicit");
+assert.equal(records.filter(item => item.inference?.review_status === "reviewed" && item.inference?.framework_assessment).length, records.length, "Every September CVE must have an inference assessment");
 const record = records.find(item => item.cve === "CVE-2026-69829");
 assert.ok(record, "CVE-2026-69829 must remain in the curated September dataset");
 assert.equal(record.threat.exploitation_assessment, "unlikely");

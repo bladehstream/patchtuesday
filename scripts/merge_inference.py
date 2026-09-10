@@ -91,7 +91,7 @@ def validate_path_compatibility(overlay: dict, baseline: dict) -> None:
         likelihood_credit = (candidate.get("effect") or {}).get("likelihood_steps", 0)
         if not likelihood_credit:
             continue
-        if mitigation_id in {"remove_external_exposure", "segmentation_acl", "exploit_specific_ips", "waf_virtual_patch"} and vector not in {"network", "adjacent"}:
+        if mitigation_id in {"remove_external_exposure", "segmentation_acl", "exploit_specific_ips", "waf_virtual_patch", "isolation_airgap"} and vector not in {"network", "adjacent"}:
             raise ValueError(f"{cve}: {mitigation_id} cannot reduce likelihood for attack vector {vector}")
         if mitigation_id in {"email_web_filtering", "office_protected_view"} and "user-content" not in tags:
             raise ValueError(f"{cve}: {mitigation_id} requires an evidence-backed user-content tag")
@@ -184,6 +184,7 @@ def main() -> None:
     parser.add_argument("--taxonomy", type=Path, default=ROOT / "data" / "tag-taxonomy.json")
     parser.add_argument("--mitigations", type=Path, default=ROOT / "data" / "mitigation-catalog.json")
     parser.add_argument("--include-unreviewed", action="store_true", help="Include every baseline record, not only inference overlays")
+    parser.add_argument("--require-complete", action="store_true", help="Reject a release unless every source CVE has an inference overlay")
     args = parser.parse_args()
 
     baseline = {item["cve"]: item for item in read_jsonl(args.baseline)}
@@ -215,6 +216,10 @@ def main() -> None:
         record["inference"]["review_status"] = "reviewed"
         record["inference"]["framework_assessment"] = overlay["framework_assessment"]
         merged.append(record)
+
+    if args.require_complete and seen != set(baseline):
+        missing = sorted(set(baseline) - seen)
+        raise ValueError(f"Incomplete inference: {len(seen)}/{len(baseline)} CVEs reviewed; missing {missing[:10]}")
 
     if args.include_unreviewed:
         for cve, record in baseline.items():
