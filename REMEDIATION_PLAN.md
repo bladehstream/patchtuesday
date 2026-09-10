@@ -649,126 +649,133 @@ Microsoft's.
 
 ---
 
-## Scaffolding resilience trial
+## Harness development loop (Haiku)
 
-Designed 2026-09-10, superseding the earlier "compare Haiku with Luna" framing,
-which was abandoned because agreement between two models measures neither one's
-correctness.
+Revised 2026-09-10. Luna is out of scope for now: the harness is the deliverable,
+not the model. Other providers get tested against it later.
 
-### The question
+This replaces the one-shot trial design. What is being asked for is not an
+experiment that reports a verdict - it is a development loop whose fitness function
+happens to be an evaluation. Structure it that way.
 
-**Does the scaffolding carry a weaker model to defensible output?**
+### The goal, stated so it can fail
 
-Not "is Haiku as good as Luna". The scaffolding - the guidance in `prompts/`, the
-seven mandatory factors, the required evidence fragments, the output schema, and the
-validators - exists to do the heavy lifting so that the model's remaining job is
-judgement it can support with citations. The claim under test is that this holds
-across model capability. Haiku is chosen deliberately as the weak arm.
+**Make the scaffolding good enough that Haiku produces defensible assessments.**
 
-### Why an ablation is required
+The scaffolding is `prompts/enrichment-system.md`, `prompts/assessor-evidence-guidance.md`,
+the output schema, the seven mandatory factors, the required evidence fragments, and
+the validators. Haiku is deliberately the weak arm. Where Haiku fails, **the fix goes
+into the harness, never into the model choice and never into per-CVE special-casing.**
 
-A model comparison cannot establish anything about scaffolding, because there is no
-arm in which the scaffolding is absent. The design therefore needs a condition
-without it:
+That last clause is the discipline that matters. A fix shaped like "handle
+CVE-2026-18149 specially" is the regex problem in a new costume. If a failure cannot
+be fixed by a change to guidance, schema or validator that would also catch the next
+instance of its kind, it is not fixed.
 
-| Arm | Model | Scaffolding | Purpose |
-|---|---|---|---|
-| A | Haiku | Full | The claim: weak model, strong scaffolding |
-| B | Haiku | Minimal prompt | Ablation. Isolates the scaffolding's contribution |
-| C | Luna (Codex CLI) | Full | Cross-vendor. Does the scaffolding hold outside one family |
-| D | Opus | Full, pre-committed | Reference judgements for adjudication, not a score |
+### Why the ablation arm survives Luna's removal
 
-If A approaches C while B is materially worse, the scaffolding is doing the work.
-If A and B are indistinguishable, the scaffolding is decorative and the guidance
-needs rewriting rather than the model replacing. **That second outcome is the one
-worth running the trial to discover**, and it must be reportable without hedging.
+With no second model in scope, the ablation is the *only* thing that can attribute
+an outcome to the scaffolding rather than to Haiku. Run Haiku against a minimal
+prompt - the record and a bare "assess this" - once at the start and once at the
+end. Without that baseline, any improvement is unattributable and the claim
+"the harness does the heavy lifting" stays unfalsifiable.
 
-### What is measured
+If tuned-scaffolding Haiku does not clearly beat minimal-prompt Haiku, the
+scaffolding is decorative. That outcome must be reportable without hedging.
 
-Not agreement. A weak model's dangerous failure is not disagreeing with a stronger
-one - it is fluent reasoning with nothing behind it. Five measures, the first two
-automated at full scale, the rest scored on the stratified sample:
+### Three data sets, and the discipline between them
 
-1. **Schema conformance** - first-pass valid output against the run schema, before
-   any retry. Directly tests whether structural scaffolding survives a weaker model,
-   and is the capability Codex's `--output-schema` provided and subagents do not.
-2. **Validator catch rate** - of the errors present, how many did the pipeline's own
-   gates catch? **Undetected error is the only failure that matters.** A methodology
-   is resilient when a weak model's mistakes are caught, not when it makes none.
-3. **Evidence-groundedness** - does every claim in the seven factors, and every
-   asserted impact, delivery and workload tag, trace to text in the supplied
-   advisory? Scored per claim.
-4. **Fabrication rate** - claims contradicted by, or simply absent from, the source.
-   The dangerous measure, and the one an agreement metric hides entirely.
-5. **Abstention correctness** - rule 6 of the enrichment contract requires `unknown`
-   when evidence is insufficient. A weak model that guesses confidently is worse
-   than one that declines. Measured as: of records where the source genuinely does
-   not settle the question, how many abstained?
+Iterating and measuring on the same records overfits the guidance to those records.
+The whole point is generalisation to next month's advisories.
 
-### Stratification
+| Set | Size | Use |
+|---|---|---|
+| **Dev** | ~50, hard-weighted | Iterate freely. Inspect every failure. Tune guidance against it |
+| **Holdout** | ~50, same strata | Measured at milestones only. **Never inspected during iteration** |
+| **Full** | 1,185 | Milestones only. Automated measures at scale |
 
-Uniform sampling across 1,185 records produces a number dominated by routine
-advisories and tells you nothing. The scored sample is stratified, and the hard
-cohort is reported **separately and first**:
+Dev and holdout are drawn from the same strata by the same seeded process, so a gap
+between them is overfitting rather than sampling. **When dev scores well and holdout
+does not, the guidance has been tuned to the dev records and the work is not done.**
 
-- The known-difficult cases: the Undici outbound-vs-inbound direction call, the
-  Exchange/DHCP scope questions, the `PR:H` PAM consistency issue.
-- The 23 `Unknown` severity records, where the vendor published nothing.
-- The 4 records flagged `missing-impact-judgement`, where Luna asserted no impact at
-  all on a pre-authentication network vulnerability at CVSS 9 or above.
-- A routine cohort of comparable size, as the control.
+### Strata
 
-### Pre-registered falsification
+Weighted towards the cases that actually exercise judgement:
 
-Recorded before the run, so the result cannot be reinterpreted afterwards. The
-scaffolding claim **fails** if any of these hold on the hard cohort:
+- Records the independent review flagged as findings.
+- The 23 `Unknown` severity records - vendor published nothing.
+- The 4 `missing-impact-judgement` records - no impact asserted at CVSS 9+ pre-auth.
+- The named hard cases: CVE-2026-18149 (Undici, outbound attack on an HTTP client),
+  CVE-2026-69282 / 69380 / 69510 (scope and privilege questions),
+  CVE-2026-80843 (PAM consistency at `PR:H`).
+- Records where signals conflict: high CVSS with low vendor severity, EPSS
+  disagreeing with the vendor's exploitation assessment, no mitigation candidates.
+- A routine cohort as control, so the measures have a floor to compare against.
 
-- Arm A's fabrication rate exceeds 5% of scored claims.
-- Arm A's validator catch rate is below 90% - that is, more than one error in ten
-  passes every gate undetected.
-- Arm A is not materially better than arm B. "Materially" is a gap the adversarial
-  scorer will state and defend, not a threshold invented after seeing the data.
+### Fitness function
 
-Any of those is a finding about the guidance, not about Haiku.
+The same five measures, now used to steer iteration rather than to grade a run.
+First two automated and cheap, so they run every cycle:
 
-### Execution order and independence
+1. **Schema conformance** - first-pass valid output, before any retry. This is the
+   capability Codex's `--output-schema` provided and subagents do not, so it is the
+   most likely early failure and the cheapest to fix in the harness.
+2. **Validator catch rate** - of errors present, how many the pipeline caught.
+   Undetected error is the only failure that matters. A harness is working when a
+   weak model's mistakes get caught, not when it stops making them.
+3. **Evidence-groundedness** - does every factor claim and every asserted impact,
+   delivery and workload tag trace to supplied advisory text.
+4. **Fabrication rate** - claims contradicted by, or absent from, the source.
+5. **Abstention correctness** - rule 6 requires `unknown` on insufficient evidence.
+   A weak model that guesses confidently is worse than one that declines.
 
-Ordering is enforced by commit history, not by assertion:
+Measures 3 to 5 are scored by an independent agent with an adversarial prompt, blind
+to which condition produced the output. Its job is to find unsupported claims and
+divergences no gate caught - not to rank anything.
 
-1. Arm D judgements produced and **committed** before any other arm runs. Their
-   timestamp in `git log` is the independence evidence.
-2. Full Haiku run, arms A and B, 1,185 records each, mirroring Luna's 15-record
-   batch size so batching is not confounded with capability. Automated measures 1
-   and 2 computed at full scale.
-3. Arm C re-run under the current guidance, since the published Luna data predates
-   revision 2026.09.2.
-4. Independent scorer, spawned with an adversarial prompt, **blind to which arm
-   produced which output**, scoring measures 3 to 5 on the stratified sample. Its
-   task is to find claims the evidence does not support and divergences no gate
-   caught - not to rank the arms.
-5. Divergences the scorer surfaces go to Bob for adjudication. Nothing in this trial
-   treats any arm as ground truth.
+### The loop
+
+    1. Run Haiku over the dev set with current scaffolding
+    2. Score. Measures 1-2 automated, 3-5 adversarial scorer
+    3. Read the failures. Classify each: guidance gap, schema gap, validator gap
+    4. Fix the harness. Never the sample, never a per-CVE rule
+    5. Re-run dev. Repeat
+    6. At milestones: run holdout and full. If holdout lags dev, stop tuning and
+       generalise the fix instead
+
+Every harness change lands as its own commit naming the failure class it addresses,
+so the loop's reasoning is recoverable from `git log`.
+
+### Pre-registered stopping conditions
+
+Recorded before the loop starts so the result cannot be reinterpreted afterwards.
+Done when, **on the holdout**:
+
+- Fabrication rate at or below 5% of scored claims.
+- Validator catch rate at or above 90%.
+- Tuned scaffolding clearly beats the minimal-prompt ablation, with the margin
+  stated and defended by the scorer.
+- Schema conformance at or above 95% first-pass.
+
+Not done, and not to be presented as done, if any of those hold only on dev.
+
+### Reference judgements
+
+Opus judgements over the dev and holdout sets are produced and **committed before
+any Haiku run**, so their timestamp in `git log` is the independence evidence. They
+exist for adjudicating divergence, not as ground truth and not as a score. Where
+Opus and Haiku disagree and the source does not settle it, the case goes to Bob.
 
 ### Constraints
 
-- All output under `work/scaffolding-trial/`. **Nothing here replaces published
-  data**, per `CLAUDE_ASSESSOR_HANDOFF.md`.
-- Provider adapters record what actually exists - invocation id, configured model,
-  session, timestamps, local hashes of exact prompt and response. No synthesised
-  receipts. `model_served` stays null.
-- A malformed response is recorded as a failure of measure 1, never repaired.
-  Repairing it would convert the exact capability gap under test into apparent
-  success.
+- All output under `work/harness-dev/`. Nothing here replaces published data.
+- Adapters record what exists: invocation id, configured model, session, timestamps,
+  local hashes of exact prompt and response. `model_served` stays null.
+- A malformed response is a measure-1 failure, recorded, never repaired. Repairing
+  it converts the exact gap under test into apparent success.
+- Batch size held at 15 records per call, matching the existing run, so batching is
+  not confounded with harness changes. Vary it deliberately or not at all.
 - Bounded failure per section 3 of the execution contract.
-
-### A prediction worth recording
-
-Moving platform and release tags out of the model reduced its clerical load - it was
-being asked to enumerate products a dict lookup gets right more often. The
-expectation is that this helps arm A more than arm C, because a weaker model has
-less attention to spare on busywork. If arm A's judgement quality does **not**
-improve relative to the pre-change Luna baseline, that prediction is wrong and
-should be reported as wrong.
 
 ---
 
