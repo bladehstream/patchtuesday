@@ -145,6 +145,17 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 .title-cell { min-width: 230px; overflow-wrap: anywhere; }
 .secondary-line { display: block; margin-top: 3px; color: var(--muted); font-size: 0.78rem; }
 .threat-line { display: block; font-weight: 650; }
+/* Unknown severity must not read as Low. Amber + dashed underline marks it as
+   a gap in the source data requiring a decision, not a low-risk finding. */
+.severity-unknown {
+  color: #8a5300;
+  background: #fff4ce;
+  border-bottom: 1px dashed #8a5300;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-weight: 650;
+}
+
 .kev-line { display: block; margin-top: 4px; color: var(--critical); font-size: 0.78rem; font-weight: 650; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
 .tag { display: inline-block; padding: 2px 6px; border: 1px solid #c7e0f4; border-radius: 2px; background: #eff6fc; color: #004578; font-size: 0.74rem; }

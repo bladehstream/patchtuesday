@@ -37,6 +37,13 @@ export function reviewStatus(record) {
   const reasons = [];
   const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
   if (record.customer_action_required === false) return { required: false, reasons };
+  if (record.severity === "Unknown") {
+    add(
+      "missing-vendor-severity",
+      "The vendor published no severity rating and no CVSS score. Establish the real severity before deciding.",
+      "Common for Chromium passthrough advisories, where Microsoft defers to the upstream vendor.",
+    );
+  }
   const framework = record.inference?.framework_assessment;
   if (!framework || record.inference?.model === "none") {
     add("missing-assessment", "Obtain an inference assessment for this CVE.");
@@ -213,7 +220,8 @@ export function normalizeRecord(record) {
     month: record.month || "unknown",
     cve: record.cve || "UNKNOWN",
     title: record.title || "Untitled vulnerability",
-    severity: record.severity || "Low",
+    severity: record.severity || "Unknown",
+    severity_basis: record.severity_basis || (record.severity ? "vendor" : "absent"),
     customer_action_required: record.customer_action_required ?? null,
     cvss: record.cvss || { base_score: null, temporal_score: null, vector: null, version: "unknown" },
     products: Array.isArray(record.products) ? record.products : [],

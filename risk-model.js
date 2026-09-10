@@ -54,6 +54,14 @@ export const RISK_MODEL = Object.freeze({
       floorWithPathBlock: 0,
       reason: "Elevated exploitation likelihood and high technical severity require out-of-cycle remediation",
     },
+    "unknown-severity": {
+      action: 1,
+      floorWithoutPathBlock: 0,
+      floorWithPathBlock: 0,
+      requiresReview: true,
+      confidence: "low",
+      reason: "The vendor published neither a severity rating nor a CVSS score. Scheduled is a placeholder pending review, not a finding of low risk",
+    },
     "standard-remediation": {
       action: 1,
       floorWithoutPathBlock: 0,
@@ -64,7 +72,10 @@ export const RISK_MODEL = Object.freeze({
 });
 
 export function isCriticalPreAuthNetworkRce(record) {
-  return Number(record.cvss?.base_score || 0) >= 9
+  // A missing base score is not a zero. Treat it as unknown and let the
+  // unknown-severity baseline handle the record instead of scoring it benign.
+  const baseScore = record.cvss?.base_score;
+  return typeof baseScore === "number" && baseScore >= 9
     && record.attack?.vector === "network"
     && record.attack?.privileges_required === "none"
     && record.attack?.user_interaction === "none"
@@ -75,6 +86,7 @@ export function selectBaselineModel(record, likelihoodIndex) {
   if (record.customer_action_required === false) return ["no-customer-action", RISK_MODEL.baselineModels["no-customer-action"]];
   if (record.threat?.kev || record.threat?.exploitation_detected) return ["active-exploitation", RISK_MODEL.baselineModels["active-exploitation"]];
   if (isCriticalPreAuthNetworkRce(record) && likelihoodIndex >= 2) return ["critical-preauth-network-rce", RISK_MODEL.baselineModels["critical-preauth-network-rce"]];
+  if (record.severity === "Unknown") return ["unknown-severity", RISK_MODEL.baselineModels["unknown-severity"]];
   if (record.severity === "Critical") return ["critical-technical", RISK_MODEL.baselineModels["critical-technical"]];
   if (likelihoodIndex >= 2 && record.severity === "Important") return ["elevated-high-severity", RISK_MODEL.baselineModels["elevated-high-severity"]];
   return ["standard-remediation", RISK_MODEL.baselineModels["standard-remediation"]];

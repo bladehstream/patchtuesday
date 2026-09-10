@@ -36,3 +36,43 @@ def test_build_records_maps_product_and_vector():
 if __name__ == "__main__":
     test_build_records_maps_product_and_vector()
     print("CVRF enrichment tests passed")
+
+
+def test_resolve_severity_preserves_unknown_when_vendor_publishes_nothing():
+    """A Chromium passthrough advisory has no MSRC severity and no CVSS score.
+
+    Before this fix the parser coerced the missing score to 0 and fell through
+    to "Low", publishing browser use-after-free bugs as negligible.
+    """
+    assert MODULE.resolve_severity("", None) == ("Unknown", "absent")
+    assert MODULE.resolve_severity(None, None) == ("Unknown", "absent")
+
+
+def test_resolve_severity_uses_vendor_text_without_a_score():
+    assert MODULE.resolve_severity("Important", None) == ("Important", "vendor")
+    assert MODULE.resolve_severity("Critical", None) == ("Critical", "vendor")
+    assert MODULE.resolve_severity("Low", None) == ("Low", "vendor")
+
+
+def test_resolve_severity_uses_score_without_vendor_text():
+    assert MODULE.resolve_severity("", 9.8) == ("Critical", "cvss")
+    assert MODULE.resolve_severity("", 7.8) == ("Important", "cvss")
+    assert MODULE.resolve_severity("", 5.4) == ("Moderate", "cvss")
+    assert MODULE.resolve_severity("", 2.3) == ("Low", "cvss")
+
+
+def test_missing_score_is_none_not_zero():
+    document = {
+        "ProductTree": {"Branch": [{"FullProductName": {"ProductID": "p1", "Value": "Microsoft Edge (Chromium-based)"}}]},
+        "Vulnerability": [{
+            "CVE": "CVE-TEST-CHROMIUM",
+            "Title": {"Value": "Chromium: CVE-TEST-CHROMIUM Use after free in V8"},
+            "ProductStatuses": [{"Status": "Known Affected", "ProductID": ["p1"]}],
+            "Threats": [],
+            "CVSSScoreSets": [],
+        }],
+    }
+    records = MODULE.build_records(document, "2026-Sep", {})
+    assert records[0]["cvss"]["base_score"] is None
+    assert records[0]["severity"] == "Unknown"
+    assert records[0]["severity_basis"] == "absent"

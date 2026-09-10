@@ -10,6 +10,11 @@ async function loadCatalog() {
   renderMitigations();
 }
 
+function severityHtml(record) {
+  const label = escapeHtml(record.severity);
+  return record.severity === "Unknown" ? `<span class="severity-unknown" title="The vendor published no severity rating and no CVSS score.">${label}</span>` : label;
+}
+
 function publishedDataUrl(select) {
   const version = select.selectedOptions[0]?.dataset.version;
   const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
@@ -137,7 +142,7 @@ function render() {
     const changed = profile.baseline.action !== profile.residual.action || profile.baseline.likelihood !== profile.residual.likelihood;
     return `<tr data-cve="${escapeHtml(record.cve)}" tabindex="0" aria-selected="${state.selectedCve === record.cve}">
       <td><span class="cve-id">${escapeHtml(record.cve)}</span>${record.review.required ? `<span class="review-badge" title="${escapeHtml(record.review.reasons.map(reason => reason.message).join(" "))}">Review required</span>` : ""}</td>
-      <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)}</span></td>
+      <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${severityHtml(record)} · ${escapeHtml(record.attack.vector)}</span></td>
       <td><div class="tag-list">${record.tags.slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
       <td><span class="threat-line">Microsoft: ${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</span><span class="secondary-line">CVSS ${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</span><span class="secondary-line">EPSS ${epssDisplay(record.threat)}</span>${record.threat.kev ? `<span class="kev-line">CISA KEV listed</span>` : ""}</td>
       <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
@@ -187,6 +192,7 @@ function riskInterpretation(record, profile) {
   if (record.customer_action_required === false) return "Microsoft states that this service has already been mitigated and no customer action is required.";
   if (record.threat.kev || record.threat.exploitation_detected) return "Immediate action is driven by confirmed exploitation. CVSS describes technical impact, but observed exploitation determines present urgency.";
   if (isCriticalPreAuthNetworkRce(record) && profile.baseline.likelihood === "Elevated") return "Immediate action is driven by the combination of Critical impact, unauthenticated network reachability, no user interaction, remote code execution, and elevated Microsoft exploitation likelihood.";
+  if (record.severity === "Unknown") return "The vendor published no severity rating and no CVSS score, so no severity-driven judgement is possible. This record is flagged for review; the scheduled action is a placeholder, not a finding of low risk.";
   if (record.severity === "Critical") return "Out-of-cycle action is driven by Critical technical impact even though current exploitation evidence is lower.";
   return "The action combines current exploitation evidence with technical severity and exploit prerequisites. Selected controls adjust the result only when the reviewed overlay links them to this exploit path.";
 }
@@ -202,7 +208,7 @@ function renderDetail() {
   const framework = record.inference?.framework_assessment;
   $("detail-panel").innerHTML = `
     <h2>${escapeHtml(record.cve)}</h2>
-    <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
+    <p class="detail-meta">${severityHtml(record)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
     <p>${escapeHtml(record.title)}</p>
     ${record.review.required ? `<section class="review-notice" aria-label="Further review required">
       <h3>Further review required</h3>

@@ -112,15 +112,41 @@ def vector_fields(vector: str) -> dict[str, str]:
     }
 
 
-def normalize_severity(value: str, base_score: float) -> str:
-    lowered = value.lower()
-    if "critical" in lowered or base_score >= 9:
-        return "Critical"
-    if "important" in lowered or "high" in lowered or base_score >= 7:
-        return "Important"
-    if "moderate" in lowered or "medium" in lowered or base_score >= 4:
-        return "Moderate"
-    return "Low"
+SEVERITY_WORDS = ("critical", "important", "high", "moderate", "medium", "low")
+
+
+def resolve_severity(value: str, base_score: float | None) -> tuple[str, str]:
+    """Resolve a severity band and record what it was based on.
+
+    Returns (severity, basis) where basis is one of "vendor", "cvss" or "absent".
+
+    Absence of evidence is not evidence of absence. When the vendor publishes
+    neither a severity string nor a CVSS base score - which is the norm for
+    Chromium passthrough advisories, where Microsoft defers to Google - the
+    answer is "Unknown". It must never silently become "Low"; doing so
+    presented browser use-after-free bugs to administrators as negligible.
+    """
+    lowered = (value or "").lower()
+    has_vendor_text = any(word in lowered for word in SEVERITY_WORDS)
+    has_score = base_score is not None
+
+    if not has_vendor_text and not has_score:
+        return "Unknown", "absent"
+
+    basis = "vendor" if has_vendor_text else "cvss"
+
+    if "critical" in lowered or (has_score and base_score >= 9):
+        return "Critical", basis
+    if "important" in lowered or "high" in lowered or (has_score and base_score >= 7):
+        return "Important", basis
+    if "moderate" in lowered or "medium" in lowered or (has_score and base_score >= 4):
+        return "Moderate", basis
+    return "Low", basis
+
+
+def normalize_severity(value: str, base_score: float | None) -> str:
+    """Backwards-compatible wrapper. Prefer resolve_severity for new callers."""
+    return resolve_severity(value, base_score)[0]
 
 
 def exploitation_assessment(value: str) -> str:
@@ -196,10 +222,14 @@ def build_records(
         ids = product_ids(vuln)
         products = [{"product_id": item, "name": product_map.get(item, item)} for item in sorted(ids)]
         cvss = best_cvss(vuln)
-        score = float(cvss.get("BaseScore") or 0)
+        raw_score = cvss.get("BaseScore")
+        # Preserve a missing score as None. Coercing it to 0 made every
+        # unscored advisory look benign to every downstream consumer.
+        score = float(raw_score) if raw_score not in (None, "") else None
         temporal_score = cvss.get("TemporalScore")
         vector = str(cvss.get("Vector") or "")
         severity_text = threat_description(vuln, "3") or threat_description(vuln, "Severity")
+        severity, severity_basis = resolve_severity(severity_text, score)
         exploit_text = " ".join(text_value(v) for v in as_list(vuln.get("Notes"))) + " " + threat_description(vuln, "1")
         combined = " ".join([title, *[item["name"] for item in products], exploit_text])
         overlay = inference.get(cve, {})
@@ -225,10 +255,11 @@ def build_records(
             "month": month,
             "cve": cve,
             "title": title,
-            "severity": normalize_severity(severity_text, score),
+            "severity": severity,
+            "severity_basis": severity_basis,
             "customer_action_required": customer_action_required,
             "cvss": {
-                "base_score": score or None,
+                "base_score": score,
                 "temporal_score": float(temporal_score) if temporal_score is not None else None,
                 "vector": vector or None,
                 "version": "4.0" if vector.startswith("CVSS:4.0") else "3.1" if vector.startswith("CVSS:3.1") else "3.0" if vector.startswith("CVSS:3.0") else "unknown",
