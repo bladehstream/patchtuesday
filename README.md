@@ -29,7 +29,7 @@ python scripts/publish_month.py work/2026-Sep-curated.jsonl --month 2026-Sep --l
 npm run build
 ```
 
-Deploy the generated `dist` directory to Cloudflare Pages. The site has no server functions, accounts, database, analytics, or remote API calls. Published JSONL files contain public advisory enrichment only. Environment filters and selected mitigations remain in browser memory unless the user explicitly exports an assessment.
+Deploy the generated `dist` directory to Cloudflare Pages. The build gives each monthly JSONL a content-addressed filename and rewrites the generated manifest, preventing an updated application from receiving an older dataset from an edge cache. The source dataset keeps its stable local filename. The site has no server functions, accounts, database, analytics, or remote API calls. Published JSONL files contain public advisory enrichment only. Environment filters and selected mitigations remain in browser memory unless the user explicitly exports an assessment.
 
 Cloudflare Pages settings:
 
