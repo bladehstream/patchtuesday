@@ -15,6 +15,8 @@ Rules:
 6. Use `unknown` when evidence is insufficient.
 7. A mitigation is relevant only when it plausibly interrupts the CVSS-defined attack path or reduces a stated consequence.
 8. Network controls can receive likelihood credit only for a Network or Adjacent attack vector.
+8a. **State `attack_path.direction` before assessing any control**, as one of `inbound`, `outbound`, `local`, `adjacent`, with an evidence fragment. Direction is who initiates the connection carrying the attack, NOT the CVSS Attack Vector. A flaw in an HTTP client, parser, or update agent triggered by a malicious response is **outbound**: the victim connects out, nothing connects in. `AV:N` is satisfied in both directions and cannot distinguish them.
+8b. A control that only removes inbound reachability - removing external exposure, a WAF in front of a service - **must not receive likelihood credit or `path_block` against an outbound attack path.** Closing public ingress does not protect a client from the server it chose to contact. The catalogue declares each control's `applies_to_direction`; the merge rejects credit that contradicts it.
 9. Email, web-content and Protected View controls require a content-delivery path supported by the MSRC description or FAQ.
 10. Authentication and least-privilege likelihood credit must match the Privileges Required metric and stated exploit prerequisite.
 11. Generic EDR presence, backups, application control, or segmentation do not make a vulnerability non-applicable.

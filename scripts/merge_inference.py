@@ -33,6 +33,49 @@ def read_jsonl(path: Path) -> list[dict]:
     return output
 
 
+ATTACK_DIRECTIONS = ["inbound", "outbound", "local", "adjacent"]
+
+
+def direction_rules(path: Path) -> dict[str, list[str]]:
+    """Which attack directions each control can plausibly interrupt.
+
+    Declared in the catalogue as data, not hardcoded here, so adding a control
+    means adding its direction applicability alongside its credit rule.
+    """
+    catalogue = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        item["id"]: item.get("applies_to_direction", list(ATTACK_DIRECTIONS))
+        for item in catalogue
+    }
+
+
+def check_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> None:
+    """Reject likelihood credit for a control that cannot act in this direction.
+
+    CVE-2026-18149 is why this exists. Undici's flaw is a malicious SERVER
+    attacking an HTTP CLIENT - the traffic is outbound. Both the previous assessor
+    and a fresh Haiku run credited "remove external exposure" against it, reasoning
+    that closing public ingress reduces reachability. It does not: nothing is
+    connecting in. A CVSS-vector compatibility check cannot catch this, because
+    AV:N is satisfied either way. Only direction can.
+    """
+    path_info = overlay.get("attack_path") or {}
+    direction = path_info.get("direction")
+    if direction not in ATTACK_DIRECTIONS:
+        raise ValueError(f"{cve}: attack_path.direction must be one of {ATTACK_DIRECTIONS}, got {direction!r}")
+    for candidate in overlay.get("mitigation_candidates") or []:
+        effect = candidate.get("effect") or {}
+        credited = (effect.get("likelihood_steps") or 0) > 0 or effect.get("path_block")
+        if not credited:
+            continue
+        allowed = rules.get(candidate.get("id"), list(ATTACK_DIRECTIONS))
+        if direction not in allowed:
+            raise ValueError(
+                f"{cve}: {candidate['id']} credited against an {direction} attack path, "
+                f"but it only acts on {allowed}. Evidence given: {candidate.get('evidence', '')[:160]}"
+            )
+
+
 def allowed_tags(path: Path) -> set[str]:
     document = json.loads(path.read_text(encoding="utf-8"))
     return {tag for values in document["namespaces"].values() for tag in values}
