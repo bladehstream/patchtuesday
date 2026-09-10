@@ -10,6 +10,12 @@ async function loadCatalog() {
   renderMitigations();
 }
 
+function publishedDataUrl(select) {
+  const version = select.selectedOptions[0]?.dataset.version;
+  const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
+  return `./data/${select.value}${suffix}`;
+}
+
 async function loadPublishedMonths() {
   const response = await fetch("./data/months.json", { cache: "no-store" });
   if (!response.ok) return;
@@ -20,13 +26,14 @@ async function loadPublishedMonths() {
     option.value = item.file;
     option.textContent = item.label || item.month;
     option.dataset.month = item.month;
+    option.dataset.version = item.published_at || "";
     select.append(option);
   }
   const preferred = months.find(item => !item.month.endsWith("-demo")) || months[0];
   if (preferred) {
     select.value = preferred.file;
     $("load-published").disabled = false;
-    const dataset = await fetch(`./data/${preferred.file}`, { cache: "no-store" });
+    const dataset = await fetch(publishedDataUrl(select), { cache: "no-store" });
     if (dataset.ok) await loadText(await dataset.text());
   }
 }
@@ -250,7 +257,7 @@ $("published-month").addEventListener("change", event => { $("load-published").d
 $("load-published").addEventListener("click", async () => {
   const select = $("published-month");
   if (!select.value) return;
-  const response = await fetch(`./data/${select.value}`, { cache: "no-store" });
+  const response = await fetch(publishedDataUrl(select), { cache: "no-store" });
   if (!response.ok) { $("status").textContent = `Could not load ${select.value}.`; return; }
   await loadText(await response.text());
 });
