@@ -170,8 +170,10 @@ def validate_framework_assessment(overlay: dict, baseline: dict) -> None:
             raise ValueError(f"{cve}: critical pre-authentication network RCE requires at least Out-of-cycle")
         if public_threat_likelihood(baseline) >= 2 and assessment["baseline_model"] != "critical-preauth-network-rce":
             raise ValueError(f"{cve}: elevated critical pre-authentication network RCE requires its archetype")
-    if threat.get("exploitation_assessment") == "more-likely" and likelihood_index < 2:
+    if baseline.get("customer_action_required") is not False and threat.get("exploitation_assessment") == "more-likely" and likelihood_index < 2:
         raise ValueError(f"{cve}: Microsoft More Likely cannot be assessed below Elevated")
+    if baseline.get("customer_action_required") is not False and likelihood_index < public_threat_likelihood(baseline):
+        raise ValueError(f"{cve}: framework likelihood cannot undercut current public threat evidence")
 
 
 def main() -> None:
@@ -235,7 +237,7 @@ def main() -> None:
     ))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(json.dumps(item, separators=(",", ":")) for item in merged) + "\n", encoding="utf-8")
-    print(f"Validated and merged {len(merged)} inference records into {args.output}")
+    print(f"Validated {len(seen)} inference overlays; published {len(merged)} total records into {args.output}")
 
 
 if __name__ == "__main__":

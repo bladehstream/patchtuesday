@@ -82,3 +82,72 @@ for (const record of samples) {
   console.log(`${record.cve}\t${profile.baseline.action}/${profile.baseline.likelihood}\t→ ${profile.residual.action}/${profile.residual.likelihood}\t${applied}`);
 }
 console.log(`Mitigation audit passed: ${reviewed.length} reviewed records checked; ${samples.length} random records reported.`);
+
+const overlays = fs.readFileSync(new URL("../inference/2026-Sep-luna.jsonl", import.meta.url), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+assert.equal(overlays.length, reviewed.length, "Every Luna output must have a published reviewed record");
+const denied = {
+  "CVE-2026-81963": ["edr_detection_response", "attack_surface_reduction"],
+  "CVE-2026-85880": ["edr_detection_response", "attack_surface_reduction"],
+  "CVE-2026-65669": catalog.map(m => m.id),
+  "CVE-2026-69769": ["remove_external_exposure"],
+  "CVE-2026-69829": ["remove_external_exposure"],
+  "CVE-2026-69845": ["remove_external_exposure"],
+  "CVE-2026-77493": ["office_protected_view"],
+  "CVE-2026-78510": ["office_protected_view"],
+};
+let combinations = 0;
+for (const overlay of overlays) {
+  const record = records.find(r => r.cve === overlay.cve);
+  assert.deepEqual(record.inference.framework_assessment, overlay.framework_assessment);
+  assert.deepEqual(record.mitigation_candidates, overlay.mitigation_candidates);
+  assert.deepEqual(overlay.cvss_basis, {
+    base_score: record.cvss.base_score, vector: record.cvss.vector,
+    attack_vector: record.attack.vector, privileges_required: record.attack.privileges_required,
+    user_interaction: record.attack.user_interaction,
+  });
+  assert.ok(record.inference.verification, record.cve + ": missing complete-review provenance");
+  const ids = record.mitigation_candidates.map(c => c.id);
+  for (let mask = 0; mask < 2 ** ids.length; mask += 1) {
+    const selection = new Set(ids.filter((_, i) => mask & (1 << i)));
+    const result = predictProfile(record, selection);
+    const base = predictProfile(record);
+    assert.equal(result.baseline.action, base.baseline.action);
+    assert.equal(result.baseline.likelihood, base.baseline.likelihood);
+    if (record.customer_action_required !== false) {
+      assert.ok(ACTIONS.indexOf(result.residual.action) >= 1, record.cve + ": ordinary controls erased patch obligation");
+      assert.ok(LIKELIHOOD.indexOf(base.baseline.likelihood) - LIKELIHOOD.indexOf(result.residual.likelihood) <= 1, record.cve + ": overlapping controls stacked");
+    }
+    combinations += 1;
+  }
+  for (const id of denied[record.cve] || []) {
+    const result = predictProfile(record, new Set([id]));
+    assert.equal(result.applied.length, 0, record.cve + ": unsupported " + id);
+    assert.ok(sameProfile(result.baseline, result.residual));
+  }
+}
+let catalogueScenarios = 0;
+for (const record of records) {
+  for (const control of catalog) {
+    const result = predictProfile(record, new Set([control.id]));
+    if (!record.mitigation_candidates.some(c => c.id === control.id && eligible(c))) {
+      assert.equal(result.applied.length, 0);
+      assert.ok(sameProfile(result.baseline, result.residual), record.cve + ": unrelated catalogue control changed result");
+    }
+    catalogueScenarios += 1;
+  }
+}
+const oldAssessment = records.find(r => r.cve === "CVE-2026-69829");
+for (const threat of [
+  { ...oldAssessment.threat, exploitation_assessment: "more-likely" },
+  { ...oldAssessment.threat, epss: 0.25 },
+]) {
+  const result = predictProfile({ ...oldAssessment, threat }, new Set(["segmentation_acl"]));
+  assert.equal(result.baseline.likelihood, "Elevated", "New public evidence must override stale inference");
+  assert.equal(result.baseline.action, "Immediate");
+  assert.equal(result.residual.action, "Out-of-cycle");
+}
+const localRecord = records.find(r => r.cve === "CVE-2026-81963");
+const invalid = { id: "segmentation_acl", relevance: "relevant", confidence: "high", effect: { likelihood_steps: 1, consequence_steps: 1 } };
+assert.equal(predictProfile({ ...localRecord, mitigation_candidates: [invalid] }, new Set([invalid.id])).applied.length, 0);
+assert.equal(predictProfile({ ...localRecord, mitigation_candidates: [{ ...invalid, id: "edr_detection_response" }] }, new Set(["edr_detection_response"])).applied.length, 0);
+console.log("Complete review checks passed: " + combinations + " control combinations and " + catalogueScenarios + " catalogue scenarios across " + records.length + " records.");

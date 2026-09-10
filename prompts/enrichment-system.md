@@ -20,6 +20,11 @@ Rules:
 14. Weigh applicability, threat evidence, exploitability, technical impact, workload context, remediation context and uncertainty together. Do not add the inputs into an invented score.
 15. Select the closest baseline archetype and action. Explain why the combined evidence supports that action and what would change it.
 16. Never lower Microsoft severity or remove exploitation evidence. The baseline action is a framework judgment before customer controls; the deterministic engine enforces hard minimums.
+17. Read every FAQ, including conflicts between prose and CVSS and product-specific update-availability exceptions. Record conflicts and lower confidence where warranted; do not silently resolve them.
+18. AV:N does not establish Internet exposure or a listening service. Public-ingress removal receives no credit for an explicitly in-network attack; parser delivery and authorized workflows require their own control analysis.
+19. Reduced delivery or reachability does not imply reduced technical impact after exploitation. Default consequence credit to zero unless independent containment evidence supports a specific consequence reduction.
+20. Generic EDR/ASR, application control, Protected View and macro policies receive no quantified credit merely because the vulnerability involves code execution or an Office file. Identify the specific prerequisite or prevention setting, or use unknown with zero effects.
+21. All preventive credits are conditional on verifying the actual service or delivery route and bypass coverage. Explain those conditions in the evidence. Ordinary controls do not remove the patch obligation.
 
 Required inferred fields:
 

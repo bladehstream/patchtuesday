@@ -28,6 +28,7 @@ export function baselineProfile(record) {
     reasons.push("EPSS provides additional exploitation evidence");
   }
 
+  const evidenceLikelihood = likelihood;
   const [fallbackModelId, fallbackModel] = selectBaselineModel(record, likelihood);
   let modelId = fallbackModelId;
   let model = fallbackModel;
@@ -37,11 +38,17 @@ export function baselineProfile(record) {
       && RISK_MODEL.framework.allowedLikelihoods.includes(framework.baseline_likelihood)
       && RISK_MODEL.framework.allowedActions.includes(framework.baseline_action)
       && RISK_MODEL.baselineModels[framework.baseline_model]) {
-    likelihood = LIKELIHOOD.indexOf(framework.baseline_likelihood);
+    likelihood = Math.max(likelihood, LIKELIHOOD.indexOf(framework.baseline_likelihood));
     action = ACTIONS.indexOf(framework.baseline_action);
     modelId = framework.baseline_model;
     model = RISK_MODEL.baselineModels[modelId];
     reasons.push(`Framework assessment: ${framework.risk_communication?.why_this_action || model.reason}`);
+    if (evidenceLikelihood > LIKELIHOOD.indexOf(framework.baseline_likelihood)) {
+      action = Math.max(action, fallbackModel.action);
+      modelId = fallbackModelId;
+      model = fallbackModel;
+      reasons.push("Current source evidence exceeds the saved inference; its likelihood and remediation floor take precedence. Review the saved explanation.");
+    }
   } else {
     reasons.push(model.reason);
   }
@@ -53,7 +60,11 @@ export function baselineProfile(record) {
     model = RISK_MODEL.baselineModels[modelId];
   }
 
-  if (isCriticalPreAuthNetworkRce(record) && likelihood >= 2) action = Math.max(action, 2);
+  if (isCriticalPreAuthNetworkRce(record)) {
+    action = Math.max(action, 2);
+    if (likelihood >= 2 && modelId !== "active-exploitation") modelId = "critical-preauth-network-rce";
+  }
+  action = Math.max(action, 1);
 
   return { likelihood, action, model: modelId, modelVersion: RISK_MODEL.version, reasons };
 }
@@ -74,11 +85,29 @@ export function predictProfile(record, selectedMitigations = new Set()) {
   let consequenceCredit = 0;
   const applied = [];
   const ignored = [];
+  const seen = new Set();
 
   for (const candidate of candidates) {
     if (!selectedMitigations.has(candidate.id)) continue;
-    if (candidate.relevance !== "relevant" || candidate.confidence === "low") {
+    if (seen.has(candidate.id)) continue;
+    seen.add(candidate.id);
+    if (candidate.relevance !== "relevant" || !["medium", "high"].includes(candidate.confidence)) {
       ignored.push(`${candidate.id}: inference did not establish exploit-path relevance`);
+      continue;
+    }
+    const effect = candidate.effect || {};
+    const likelihoodSteps = effect.likelihood_steps || 0;
+    const consequenceSteps = effect.consequence_steps || 0;
+    const networkControls = ["remove_external_exposure", "segmentation_acl", "exploit_specific_ips", "waf_virtual_patch", "isolation_airgap"];
+    const incompatible = ![0, 1, 2].includes(likelihoodSteps) || ![0, 1, 2].includes(consequenceSteps)
+      || (likelihoodSteps > 0 && networkControls.includes(candidate.id) && !["network", "adjacent"].includes(record.attack?.vector))
+      || (likelihoodSteps > 0 && ["edr_detection_response", "immutable_backups"].includes(candidate.id))
+      || (likelihoodSteps > 0 && ["email_web_filtering", "office_protected_view"].includes(candidate.id) && !record.tags?.includes("user-content"))
+      || (likelihoodSteps > 0 && ["strong_authentication", "least_privilege_pam"].includes(candidate.id) && !["low", "high"].includes(record.attack?.privileges_required))
+      || (effect.path_block && !(candidate.confidence === "high" && ["vendor_workaround", "service_disabled_vendor_guidance"].includes(candidate.id)))
+      || (likelihoodSteps === 2 && !effect.path_block);
+    if (incompatible) {
+      ignored.push(`${candidate.id}: effect is incompatible with source prerequisites or mitigation guardrails`);
       continue;
     }
     likelihoodCredit += Math.max(0, Number(candidate.effect?.likelihood_steps || 0));
@@ -96,7 +125,7 @@ export function predictProfile(record, selectedMitigations = new Set()) {
   let residualAction = base.action;
   if (likelihoodCredit >= 1 || consequenceCredit >= 1) residualAction -= 1;
   if (likelihoodCredit >= 2 && consequenceCredit >= 1) residualAction -= 1;
-  const actionFloor = specialPathBlock ? model.floorWithPathBlock : model.floorWithoutPathBlock;
+  const actionFloor = Math.max(1, specialPathBlock ? model.floorWithPathBlock : model.floorWithoutPathBlock);
   residualAction = Math.max(actionFloor, residualAction);
 
   const reasons = [...base.reasons];
