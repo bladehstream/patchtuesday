@@ -25,7 +25,13 @@ def test_build_records_maps_product_and_vector():
     records = MODULE.build_records(document, "2026-Sep", {})
     assert len(records) == 1
     assert records[0]["products"][0]["name"] == "Windows Server 2016"
-    assert {"server", "server-2016", "dns"}.issubset(set(records[0]["tags"]))
+    # Product and release tags are derived from the structured product tree.
+    assert {"microsoft", "server", "server-2016"}.issubset(set(records[0]["product_tags"]))
+    # "dns" is a workload judgement. With no inference overlay supplied there is no
+    # judgement to record, and the parser must not invent one by matching the title -
+    # which is precisely what the old TAG_RULES regex did.
+    assert records[0]["tags"] == []
+    assert "dns" not in records[0]["product_tags"]
     assert records[0]["attack"]["vector"] == "network"
     assert records[0]["severity"] == "Critical"
     assert records[0]["products"][0]["product_id"] == "p1"
@@ -76,3 +82,49 @@ def test_missing_score_is_none_not_zero():
     assert records[0]["cvss"]["base_score"] is None
     assert records[0]["severity"] == "Unknown"
     assert records[0]["severity_basis"] == "absent"
+
+
+def test_product_tags_derive_from_structured_products_not_prose():
+    """Release tags come from the product tree, not from matching the title.
+
+    The old regex matched "windows server 2025" anywhere in a concatenated blob of
+    title, product names and notes. Deriving from products[] is both more accurate
+    and incapable of leaking into the risk path.
+    """
+    products = [
+        {"product_id": "1", "name": "Windows Server 2025"},
+        {"product_id": "2", "name": "Windows 11 Version 24H2 for x64-based Systems"},
+    ]
+    tags = MODULE.derive_product_tags(products)
+    assert "server-2025" in tags
+    assert "windows-11" in tags
+    assert "server" in tags
+    assert "endpoint" in tags
+    assert "microsoft" in tags
+
+
+def test_product_tags_ignore_title_prose():
+    """A title mentioning a product does not create a release tag."""
+    products = [{"product_id": "1", "name": "Windows Server 2012"}]
+    tags = MODULE.derive_product_tags(products)
+    assert "server-2025" not in tags
+    assert "windows-11" not in tags
+    assert "server" in tags
+
+
+def test_derivation_emits_no_judgement_tags():
+    """Impact, delivery and workload tags are the model's job, never derived."""
+    products = [{"product_id": "1", "name": "Windows Server 2025 DNS Remote Code Execution"}]
+    tags = set(MODULE.derive_product_tags(products))
+    forbidden = {
+        "remote-code-execution", "elevation-of-privilege", "security-feature-bypass",
+        "information-disclosure", "denial-of-service", "spoofing",
+        "user-content", "email", "web", "remote-service", "local-access", "dns",
+    }
+    assert not (tags & forbidden), f"derivation leaked judgement tags: {sorted(tags & forbidden)}"
+
+
+def test_no_regex_tag_rules_remain():
+    """The prose-matching tag table must not come back."""
+    assert not hasattr(MODULE, "TAG_RULES")
+    assert not hasattr(MODULE, "infer_tags")

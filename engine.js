@@ -33,6 +33,14 @@ export function publicProfile(record, selectedMitigations = new Set()) {
   };
 }
 
+export function frameworkIsUsable(framework) {
+  return Boolean(framework)
+    && framework.risk_model_version === RISK_MODEL.version
+    && RISK_MODEL.framework.allowedLikelihoods.includes(framework.baseline_likelihood)
+    && RISK_MODEL.framework.allowedActions.includes(framework.baseline_action)
+    && Boolean(RISK_MODEL.baselineModels[framework.baseline_model]);
+}
+
 export function reviewStatus(record) {
   const reasons = [];
   const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
@@ -47,6 +55,15 @@ export function reviewStatus(record) {
   const framework = record.inference?.framework_assessment;
   if (!framework || record.inference?.model === "none") {
     add("missing-assessment", "Obtain an inference assessment for this CVE.");
+  } else if (!frameworkIsUsable(framework)) {
+    // The saved assessment exists but does not validate, so baselineProfile fell
+    // back to deterministic policy. That fallback is a placeholder, not a
+    // judgement, and must never pass silently as an assessed record.
+    add(
+      "unusable-assessment",
+      "The saved assessment failed validation, so no model judgement is in force. Re-run inference for this CVE.",
+      `risk_model_version=${framework.risk_model_version ?? "absent"} baseline_model=${framework.baseline_model ?? "absent"}`,
+    );
   } else {
     const uncertainty = framework.factors?.uncertainty || "";
     if (framework.confidence === "low") add("low-confidence", "Check the assessment's low-confidence conclusion.", uncertainty);
@@ -106,10 +123,7 @@ export function baselineProfile(record) {
   let model = fallbackModel;
   let action = model.action;
   const framework = record.inference?.framework_assessment;
-  if (framework?.risk_model_version === RISK_MODEL.version
-      && RISK_MODEL.framework.allowedLikelihoods.includes(framework.baseline_likelihood)
-      && RISK_MODEL.framework.allowedActions.includes(framework.baseline_action)
-      && RISK_MODEL.baselineModels[framework.baseline_model]) {
+  if (frameworkIsUsable(framework)) {
     likelihood = Math.max(likelihood, LIKELIHOOD.indexOf(framework.baseline_likelihood));
     action = ACTIONS.indexOf(framework.baseline_action);
     modelId = framework.baseline_model;
@@ -226,6 +240,7 @@ export function normalizeRecord(record) {
     cvss: record.cvss || { base_score: null, temporal_score: null, vector: null, version: "unknown" },
     products: Array.isArray(record.products) ? record.products : [],
     tags: Array.isArray(record.tags) ? record.tags : [],
+    product_tags: Array.isArray(record.product_tags) ? record.product_tags : [],
     attack: record.attack || { vector: "unknown", privileges_required: "unknown", user_interaction: "unknown" },
     threat: record.threat || {},
     mitigation_candidates: Array.isArray(record.mitigation_candidates) ? record.mitigation_candidates : [],
@@ -310,6 +325,7 @@ function allText(record) {
     record.attack?.user_interaction,
     record.threat?.exploitation_assessment,
     ...(record.tags || []),
+    ...(record.product_tags || []),
     ...(record.products || []).flatMap(product => [product.name, product.product_id]),
     ...(record.mitigation_candidates || []).flatMap(item => [item.id, item.evidence]),
     ...(record.vendor_guidance?.notes || []).flatMap(note => [note.title, note.value]),
@@ -319,7 +335,7 @@ function allText(record) {
 function fieldMatches(record, field, value, selectedMitigations) {
   const query = value.toLowerCase();
   if (field === "cve") return record.cve.toLowerCase().includes(query);
-  if (field === "tag") return (record.tags || []).some(tag => tag.toLowerCase() === query || tag.toLowerCase().includes(query));
+  if (field === "tag") return [...(record.tags || []), ...(record.product_tags || [])].some(tag => tag.toLowerCase() === query || tag.toLowerCase().includes(query));
   if (field === "product") return (record.products || []).some(product => `${product.name} ${product.product_id}`.toLowerCase().includes(query));
   if (field === "severity") return record.severity.toLowerCase() === query;
   if (field === "vector") return record.attack?.vector?.toLowerCase() === query;

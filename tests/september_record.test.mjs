@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { parseJsonl, predictProfile, reviewStatus } from "../engine.js";
+import { parseJsonl, predictProfile, reviewStatus, frameworkIsUsable } from "../engine.js";
+import fsSync from "node:fs";
 
 const records = parseJsonl(fs.readFileSync(new URL("../data/2026-Sep.jsonl", import.meta.url), "utf8"));
 
@@ -49,4 +50,27 @@ for (const item of unknowns) {
   assert.ok(status.required, `${item.cve} has Unknown severity and must be flagged for review`);
   assert.ok(status.reasons.some(reason => reason.code === "missing-vendor-severity"), `${item.cve} must carry the missing-vendor-severity review reason`);
 }
+// Layer separation: nothing the risk path reads may be produced by matching
+// advisory prose. Product tags are derived from the structured product tree and are
+// cosmetic; judgement tags are model-asserted and gate mitigation credit and
+// archetypes. The two must not mix.
+const taxonomy = JSON.parse(fsSync.readFileSync(new URL("../data/tag-taxonomy.json", import.meta.url), "utf8"));
+const judgement = new Set(["workload", "delivery", "impact"].flatMap(ns => taxonomy.namespaces[ns]));
+const derived = new Set(["vendor", "platform", "deployment", "release"].flatMap(ns => taxonomy.namespaces[ns]));
+for (const item of records) {
+  assert.ok(Array.isArray(item.product_tags), `${item.cve} must carry derived product_tags`);
+  const strayJudgement = item.product_tags.filter(tag => judgement.has(tag));
+  assert.equal(strayJudgement.length, 0, `${item.cve}: derived product_tags leaked judgement tags ${strayJudgement}`);
+  const strayDerived = item.tags.filter(tag => derived.has(tag));
+  assert.equal(strayDerived.length, 0, `${item.cve}: risk-path tags contain derived product tags ${strayDerived}`);
+}
+
+// An assessment that exists but fails validation must be flagged, never allowed to
+// pass silently as an assessed record while deterministic policy quietly stands in.
+const broken = { ...records[0], inference: { ...records[0].inference, framework_assessment: { ...records[0].inference.framework_assessment, baseline_action: "Not-A-Real-Action" } } };
+assert.equal(frameworkIsUsable(broken.inference.framework_assessment), false, "a bad baseline_action must not validate");
+const brokenStatus = reviewStatus(broken);
+assert.ok(brokenStatus.required, "an unusable assessment must require review");
+assert.ok(brokenStatus.reasons.some(reason => reason.code === "unusable-assessment"), "an unusable assessment must carry the unusable-assessment reason");
+
 console.log(`September CVE regression test passed (${records.length} records, ${unknowns.length} Unknown severity)`);

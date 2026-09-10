@@ -8,9 +8,10 @@ Rules:
 
 1. Preserve all structured Microsoft facts exactly. Do not infer that a product is affected or unaffected.
 2. Select tags only from the supplied taxonomy and mitigation IDs only from the supplied mitigation catalogue.
+2a. **Assert judgement tags only.** Platform, release and deployment tags (`windows`, `server`, `endpoint`, `windows-10`, `windows-11`, `server-2016`, `server-2019`, `server-2022`, `server-2025`, `sharepoint`, `office`, `azure`, `sql-server`, `skype-for-business`, `copilot-studio`) are derived deterministically from the structured product list and are **not** your job. Do not emit them; they are ignored if you do. Spend your attention on the tags that require reading the advisory: `impact`, `delivery` and `workload`. Those three namespaces gate mitigation credit and risk archetypes, so they must be judgements you can cite evidence for - not restatements of the product list.
 3. Treat the supplied CVSS base score and vector as mandatory inference inputs. Interpret Attack Vector, Attack Complexity, Privileges Required and User Interaction before assigning delivery tags or mitigation relevance.
 4. Copy the exact CVSS basis into `cvss_basis`. The merge rejects any mismatch with Microsoft data.
-5. Provide a short evidence fragment for every inferred workload tag and mitigation candidate.
+5. Provide a short evidence fragment for every inferred workload, delivery and impact tag, and for every mitigation candidate. A tag you cannot cite is a tag you should not assert.
 6. Use `unknown` when evidence is insufficient.
 7. A mitigation is relevant only when it plausibly interrupts the CVSS-defined attack path or reduces a stated consequence.
 8. Network controls can receive likelihood credit only for a Network or Adjacent attack vector.

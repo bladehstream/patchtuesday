@@ -77,8 +77,11 @@ function updateMitigationSummary() {
 }
 
 function productTags() {
-  const excluded = new Set(["microsoft", "remote-code-execution", "elevation-of-privilege", "security-feature-bypass", "information-disclosure", "denial-of-service", "spoofing", "user-content"]);
-  return [...new Set(state.records.flatMap(record => record.tags).filter(tag => !excluded.has(tag)))].sort();
+  // Derived from the structured product list, never from advisory prose, and kept
+  // out of the risk path entirely. A wrong product tag is cosmetic; a wrong
+  // judgement tag is not, which is why the two are separate fields.
+  const excluded = new Set(["microsoft"]);
+  return [...new Set(state.records.flatMap(record => record.product_tags || []).filter(tag => !excluded.has(tag)))].sort();
 }
 
 function renderProductFilters() {
@@ -115,7 +118,7 @@ function filteredRecords() {
     if (!matchesSmartSearch(record, state.searchQuery, state.selectedMitigations)) return false;
     if (!severity.has(record.severity)) return false;
     if (!vectors.has(record.attack.vector)) return false;
-    if (state.selectedProducts.size && !record.tags.some(tag => state.selectedProducts.has(tag))) return false;
+    if (state.selectedProducts.size && !(record.product_tags || []).some(tag => state.selectedProducts.has(tag))) return false;
     if ($("filter-exploited").checked && !(record.threat.kev || record.threat.exploitation_detected)) return false;
     if ($("filter-likely").checked && record.threat.exploitation_assessment !== "more-likely") return false;
     if ($("filter-review").checked && !record.review.required) return false;
@@ -143,7 +146,7 @@ function render() {
     return `<tr data-cve="${escapeHtml(record.cve)}" tabindex="0" aria-selected="${state.selectedCve === record.cve}">
       <td><span class="cve-id">${escapeHtml(record.cve)}</span>${record.review.required ? `<span class="review-badge" title="${escapeHtml(record.review.reasons.map(reason => reason.message).join(" "))}">Review required</span>` : ""}</td>
       <td class="title-cell">${escapeHtml(record.title)}<span class="secondary-line">${severityHtml(record)} · ${escapeHtml(record.attack.vector)}</span></td>
-      <td><div class="tag-list">${record.tags.slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
+      <td><div class="tag-list">${[...(record.product_tags || []), ...record.tags].slice(0, 8).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div></td>
       <td><span class="threat-line">Microsoft: ${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</span><span class="secondary-line">CVSS ${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</span><span class="secondary-line">EPSS ${epssDisplay(record.threat)}</span>${record.threat.kev ? `<span class="kev-line">CISA KEV listed</span>` : ""}</td>
       <td><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span><span class="secondary-line">${escapeHtml(profile.baseline.likelihood)}</span></td>
       <td><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span><span class="secondary-line">${escapeHtml(profile.residual.likelihood)}</span>${changed ? `<span class="change-note">Adjusted by verified relevant controls</span>` : ""}</td>

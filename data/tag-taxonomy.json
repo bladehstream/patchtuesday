@@ -1,12 +1,83 @@
 {
   "version": "1.0",
   "namespaces": {
-    "vendor": ["microsoft"],
-    "platform": ["windows", "office", "sharepoint", "azure", "sql-server", "skype-for-business", "copilot-studio"],
-    "deployment": ["server", "endpoint", "shared-service", "identity-control-plane"],
-    "release": ["windows-10", "windows-11", "server-2016", "server-2019", "server-2022", "server-2025"],
-    "workload": ["dns", "dhcp", "identity", "hyper-v", "print", "file-services", "remote-desktop", "web-server", "database", "nfs", "rras", "netlogon", "message-queuing", "failover-cluster", "sstp", "windows-shell", "graphics", "imaging", "update-stack", "alpc", "internet-connection-sharing"],
-    "delivery": ["user-content", "email", "web", "remote-service", "local-access"],
-    "impact": ["remote-code-execution", "elevation-of-privilege", "security-feature-bypass", "information-disclosure", "denial-of-service", "spoofing"]
+    "vendor": [
+      "microsoft"
+    ],
+    "platform": [
+      "windows",
+      "office",
+      "sharepoint",
+      "azure",
+      "sql-server",
+      "skype-for-business",
+      "copilot-studio"
+    ],
+    "deployment": [
+      "server",
+      "endpoint",
+      "shared-service",
+      "identity-control-plane"
+    ],
+    "release": [
+      "windows-10",
+      "windows-11",
+      "server-2016",
+      "server-2019",
+      "server-2022",
+      "server-2025"
+    ],
+    "workload": [
+      "dns",
+      "dhcp",
+      "identity",
+      "hyper-v",
+      "print",
+      "file-services",
+      "remote-desktop",
+      "web-server",
+      "database",
+      "nfs",
+      "rras",
+      "netlogon",
+      "message-queuing",
+      "failover-cluster",
+      "sstp",
+      "windows-shell",
+      "graphics",
+      "imaging",
+      "update-stack",
+      "alpc",
+      "internet-connection-sharing"
+    ],
+    "delivery": [
+      "user-content",
+      "email",
+      "web",
+      "remote-service",
+      "local-access"
+    ],
+    "impact": [
+      "remote-code-execution",
+      "elevation-of-privilege",
+      "security-feature-bypass",
+      "information-disclosure",
+      "denial-of-service",
+      "spoofing"
+    ]
+  },
+  "derivation": {
+    "note": "Which namespaces are derived deterministically from structured product data and which are model judgements. Only judgement namespaces reach the risk path.",
+    "derived_from_products": [
+      "vendor",
+      "platform",
+      "deployment",
+      "release"
+    ],
+    "model_judgement": [
+      "workload",
+      "delivery",
+      "impact"
+    ]
   }
 }

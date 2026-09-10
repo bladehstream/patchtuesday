@@ -12,30 +12,55 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-TAG_RULES = {
-    "windows": (r"\bwindows\b",),
-    "server": (r"\bserver\b",),
-    "server-2016": (r"windows server 2016",),
-    "server-2019": (r"windows server 2019",),
-    "server-2022": (r"windows server 2022",),
-    "server-2025": (r"windows server 2025",),
-    "windows-10": (r"windows 10",),
-    "windows-11": (r"windows 11",),
-    "dns": (r"\bdns\b", r"domain name system"),
-    "dhcp": (r"\bdhcp\b", r"dynamic host configuration"),
-    "sharepoint": (r"sharepoint",),
-    "office": (r"\boffice\b", r"microsoft 365 apps"),
-    "identity": (r"active directory", r"domain controller", r"entra"),
-    "hyper-v": (r"hyper-v",),
-    "print": (r"print spooler", r"printing"),
-    "endpoint": (r"windows 10", r"windows 11", r"office", r"microsoft 365 apps"),
-    "remote-code-execution": (r"remote code execution",),
-    "elevation-of-privilege": (r"elevation of privilege",),
-    "security-feature-bypass": (r"security feature bypass",),
-    "information-disclosure": (r"information disclosure",),
-    "denial-of-service": (r"denial of service",),
-    "spoofing": (r"spoofing",),
-}
+# Release and platform tags are derived from the STRUCTURED product list, not by
+# pattern matching advisory prose. The old TAG_RULES regexes matched phrases in the
+# title, which is both unreliable and a layer violation: a regex over prose has no
+# business feeding a risk archetype. Measured on 2026-Sep, the regexes contributed
+# 164 release-tag additions the model had omitted - and in all 35 sampled cases the
+# products[] array already listed the product outright. Deriving from products[] is
+# strictly more accurate than either the regex or the model.
+#
+# Judgement tags - impact, delivery, workload - are NOT derived here. They come from
+# the inference overlay with cited evidence. See docs and CLAUDE.md.
+PRODUCT_TAG_RULES: tuple[tuple[str, str], ...] = (
+    ("server-2016", "windows server 2016"),
+    ("server-2019", "windows server 2019"),
+    ("server-2022", "windows server 2022"),
+    ("server-2025", "windows server 2025"),
+    ("windows-10", "windows 10"),
+    ("windows-11", "windows 11"),
+    ("sharepoint", "sharepoint"),
+    ("office", "microsoft 365 apps"),
+    ("office", "microsoft office"),
+    ("azure", "azure"),
+    ("sql-server", "sql server"),
+    ("skype-for-business", "skype for business"),
+    ("copilot-studio", "copilot studio"),
+)
+
+ENDPOINT_RELEASES = {"windows-10", "windows-11"}
+SERVER_RELEASES = {"server-2016", "server-2019", "server-2022", "server-2025"}
+
+
+def derive_product_tags(products: list[dict[str, Any]]) -> list[str]:
+    """Derive platform, release and deployment tags from the structured product list.
+
+    This is parsing, not judgement: every tag here is a lookup against product names
+    Microsoft published in the CVRF product tree. Nothing here reaches a risk
+    decision - the risk path reads only model-asserted tags.
+    """
+    names = " | ".join(str(product.get("name") or "") for product in products).lower()
+    tags = {"microsoft"}
+    for tag, needle in PRODUCT_TAG_RULES:
+        if needle in names:
+            tags.add(tag)
+    if "windows" in names:
+        tags.add("windows")
+    if tags & SERVER_RELEASES or "windows server" in names:
+        tags.add("server")
+    if tags & ENDPOINT_RELEASES or "microsoft 365 apps" in names or "microsoft office" in names:
+        tags.add("endpoint")
+    return sorted(tags)
 
 
 def as_list(value: Any) -> list[Any]:
@@ -81,12 +106,6 @@ def product_ids(vulnerability: dict[str, Any]) -> set[str]:
             elif isinstance(value, (dict, list)):
                 found.update(product_ids({"ProductStatuses": value}))
     return found
-
-
-def infer_tags(text: str) -> list[str]:
-    lowered = text.lower()
-    tags = [tag for tag, patterns in TAG_RULES.items() if any(re.search(pattern, lowered) for pattern in patterns)]
-    return ["microsoft", *sorted(set(tags))]
 
 
 def threat_description(vulnerability: dict[str, Any], threat_type: str) -> str:
@@ -233,7 +252,10 @@ def build_records(
         exploit_text = " ".join(text_value(v) for v in as_list(vuln.get("Notes"))) + " " + threat_description(vuln, "1")
         combined = " ".join([title, *[item["name"] for item in products], exploit_text])
         overlay = inference.get(cve, {})
-        tags = sorted(set(infer_tags(combined) + as_list(overlay.get("tags"))))
+        # Judgement tags come from the model overlay alone. Product tags are derived
+        # separately from structured data and never merged into the risk path.
+        tags = sorted(set(as_list(overlay.get("tags"))))
+        product_tags = derive_product_tags(products)
         notes = [
             {"title": str(note.get("Title") or ""), "type": note.get("Type"), "value": text_value(note)}
             for note in as_list(vuln.get("Notes")) if isinstance(note, dict) and (note.get("Value") or note.get("value"))
@@ -266,6 +288,7 @@ def build_records(
             },
             "products": products,
             "tags": tags,
+            "product_tags": product_tags,
             "attack": vector_fields(vector),
             "threat": {
                 "kev": cve in kev,
