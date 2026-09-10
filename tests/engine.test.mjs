@@ -16,6 +16,11 @@ const local = { ...active, cve: "CVE-TEST-2", severity: "Important", attack: { v
 const localProfile = predictProfile(local, new Set(["segmentation_acl"]));
 assert.equal(localProfile.baseline.action, localProfile.residual.action, "An irrelevant mitigation receives no credit");
 
+const unknown = { ...local, mitigation_candidates: [{ id: "segmentation_acl", relevance: "unknown", confidence: "high", effect: { likelihood_steps: 1, consequence_steps: 1 } }] };
+const unknownProfile = predictProfile(unknown, new Set(["segmentation_acl"]));
+assert.equal(unknownProfile.applied.length, 0, "An unknown exploit-path relationship receives no credit");
+assert.equal(unknownProfile.baseline.action, unknownProfile.residual.action, "Unknown relevance must not alter the predicted profile");
+
 const noAction = { ...active, cve: "CVE-TEST-3", customer_action_required: false };
 const noActionProfile = predictProfile(noAction, new Set());
 assert.equal(noActionProfile.residual.action, "Defer and review", "Microsoft no-action records do not create patch work");

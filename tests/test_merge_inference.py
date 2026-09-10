@@ -43,6 +43,16 @@ def run_tests():
         "mitigation_candidates": [{"id": "segmentation_acl", "effect": {"likelihood_steps": 1}}],
     }
     expect_failure(lambda: MODULE.validate_path_compatibility(overlay, BASELINE), "cannot reduce likelihood")
+    expect_failure(
+        lambda: MODULE.validate_candidate({
+            "id": "segmentation_acl",
+            "relevance": "unknown",
+            "confidence": "high",
+            "effect": {"likelihood_steps": 1, "consequence_steps": 0, "path_block": False},
+            "evidence": "Applicability has not been established.",
+        }, {"segmentation_acl"}, BASELINE["cve"]),
+        "cannot claim assessment credit",
+    )
     valid_framework = {
         "risk_model_version": "2026.09.1",
         "baseline_model": "critical-technical",

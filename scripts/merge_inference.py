@@ -50,6 +50,10 @@ def validate_candidate(candidate: dict, allowed: set[str], cve: str) -> None:
     for field in ("likelihood_steps", "consequence_steps"):
         if effect.get(field, 0) not in {0, 1, 2}:
             raise ValueError(f"{cve}: {field} must be 0, 1, or 2")
+    if candidate.get("relevance") != "relevant" and any(
+        (effect.get("likelihood_steps", 0), effect.get("consequence_steps", 0), effect.get("path_block", False))
+    ):
+        raise ValueError(f"{cve}: non-relevant or unknown mitigations cannot claim assessment credit")
     if effect.get("path_block") and not (
         candidate.get("confidence") == "high"
         and mitigation_id in {"service_disabled_vendor_guidance", "vendor_workaround"}

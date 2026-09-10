@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.1";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.1.2";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
@@ -195,7 +195,7 @@ function renderDetail() {
     return;
   }
   const profile = predictProfile(record, state.selectedMitigations);
-  const relevant = record.mitigation_candidates.filter(item => item.relevance !== "not-relevant");
+  const relevant = record.mitigation_candidates.filter(item => item.relevance === "relevant");
   const framework = record.inference?.framework_assessment;
   $("detail-panel").innerHTML = `
     <h2>${escapeHtml(record.cve)}</h2>
@@ -221,7 +221,7 @@ function renderDetail() {
       <p class="detail-meta">Model ${escapeHtml(framework.risk_model_version)} · ${escapeHtml(framework.confidence)} confidence</p>
     </div>` : ""}
     <h3>Relevant mitigation inference</h3>
-    ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
+    ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${item.confidence === "low" ? "No assessment credit · low confidence" : `${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit · ${item.effect?.consequence_steps || 0} consequence step credit`}</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
     <h3>Inference record</h3>
     <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${escapeHtml(record.inference.review_status || "unreviewed")} · taxonomy ${escapeHtml(record.inference.taxonomy_version || "unknown")}</p>
     ${record.source.url ? `<h3>Source</h3><a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(record.source.url)}</a>` : ""}`;

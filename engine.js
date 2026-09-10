@@ -77,7 +77,7 @@ export function predictProfile(record, selectedMitigations = new Set()) {
 
   for (const candidate of candidates) {
     if (!selectedMitigations.has(candidate.id)) continue;
-    if (candidate.relevance === "not-relevant" || candidate.confidence === "low") {
+    if (candidate.relevance !== "relevant" || candidate.confidence === "low") {
       ignored.push(`${candidate.id}: inference did not establish exploit-path relevance`);
       continue;
     }
