@@ -1,0 +1,22 @@
+# Normalise line endings. Without this the repo accumulates CRLF churn that makes
+# diffs unreadable and pollutes commits — 2793 lines of it as of 2026-09-10, with
+# zero content change.
+* text=auto eol=lf
+
+*.jsonl text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.py    text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.yml   text eol=lf
+
+# PowerShell is conventionally CRLF on Windows.
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
