@@ -1,5 +1,7 @@
 # Monthly CVRF enrichment contract
 
+Authoring guidance revision **2026.09.2** (2026-09-10), applicable to any assessor provider. Read and follow [assessor-evidence-guidance.md](assessor-evidence-guidance.md) before assessing records. It adds mandatory source-truth checks, explicit exploit direction, mitigation challenges, structured review requirements and calibration criteria. The executable risk-model version remains 2026.09.1. The current strict Luna adapter and browser do not yet consume all new fields; see the compatibility section and [Claude handoff](../CLAUDE_ASSESSOR_HANDOFF.md).
+
 You enrich public Microsoft security advisory records. You never assess a customer environment. Use `models/baseline-risk-models.md` and the executable guardrails in `risk-model.js` as a reasoning framework. The archetypes are reference cases, not a numeric formula. Return one JSON object per CVE using schema version 1.0.
 
 Rules:
@@ -19,7 +21,7 @@ Rules:
 13. Use high confidence only for explicit advisory text or an unambiguous structured field. Use medium for a strong technical implication. Otherwise use low.
 14. Weigh applicability, threat evidence, exploitability, technical impact, workload context, remediation context and uncertainty together. Do not add the inputs into an invented score.
 15. Select the closest baseline archetype and action. Explain why the combined evidence supports that action and what would change it.
-16. Never lower Microsoft severity or remove exploitation evidence. The baseline action is a framework judgment before customer controls; the deterministic engine enforces hard minimums.
+16. Preserve explicit Microsoft severity and exploitation evidence. Missing source severity is Unknown, never an inferred Microsoft Low rating. Flag parser defaults separately without silently rewriting source facts. The baseline action is a framework judgment before customer controls; the deterministic engine enforces hard minimums.
 17. Read every FAQ, including conflicts between prose and CVSS and product-specific update-availability exceptions. Record conflicts and lower confidence where warranted; do not silently resolve them.
 18. AV:N does not establish Internet exposure or a listening service. Public-ingress removal receives no credit for an explicitly in-network attack; parser delivery and authorized workflows require their own control analysis.
 19. Reduced delivery or reachability does not imply reduced technical impact after exploitation. Default consequence credit to zero unless independent containment evidence supports a specific consequence reduction.
@@ -87,3 +89,5 @@ Required inferred fields:
 `baseline_likelihood` must be `Low evidence`, `Plausible`, `Elevated`, or `Active`. `baseline_action` must be `Defer and review`, `Scheduled`, `Out-of-cycle`, or `Immediate`.
 
 `likelihood_steps` and `consequence_steps` must each be 0, 1, or 2. A value of 2 requires explicit vendor guidance and high confidence. Downstream policy caps combined credit and enforces hard remediation floors.
+
+For guidance 2026.09.2, also emit the nested evidence extensions defined in assessor-evidence-guidance.md. Legacy examples above are the minimum compatibility shape, not the complete revised authoring requirements. Use the actual provider/model identity in inference.model and record inference.guidance_version.

@@ -2,6 +2,10 @@
 
 A dependency-free local prototype for filtering inference-enriched Microsoft CVRF data and applying verified enterprise mitigations to an explainable predicted risk profile.
 
+## Assessor guidance and Claude handoff
+
+Start with [CLAUDE_ASSESSOR_HANDOFF.md](CLAUDE_ASSESSOR_HANDOFF.md) for a portable trial prompt, read order, validation commands and known implementation gaps. The provider-neutral authoring requirements are versioned as **2026.09.2** in [prompts/assessor-evidence-guidance.md](prompts/assessor-evidence-guidance.md). The [independent 20-CVE review](models/2026-Sep-independent-20-review.md) is the calibration record. These documentation changes do not fix the identified parser/mitigation defects or implement the new structured review fields; those tasks are explicitly listed in the handoff.
+
 ## Run the interface
 
 ```powershell

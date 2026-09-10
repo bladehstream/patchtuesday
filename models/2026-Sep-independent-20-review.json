@@ -1,0 +1,300 @@
+{
+  "reviewer": "Codex main assistant, independently of Luna",
+  "reviewed_at": "2026-09-10",
+  "source_first": true,
+  "seed": 3606323612,
+  "population": 1185,
+  "sample_size": 20,
+  "population_sha256": "f1aff05543a699f2dd0e9fa3be4281382efac0e818a7456c7cd6fc5d3f2ff452",
+  "cases": [
+    {
+      "cve": "CVE-2026-73029",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Authenticated SQL heap-memory disclosure has high confidentiality impact but no integrity/availability impact or active exploitation. Restricting the actual SQL connection/permission prerequisite can reduce opportunity; merely removing admin rights from an already-low-privilege account is insufficient.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-73029"
+    },
+    {
+      "cve": "CVE-2026-69757",
+      "site_priority": "Expedited",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Elevated",
+      "independent_likelihood": "Elevated",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Microsoft More Likely drives Elevated despite EPSS below 1%. SYSTEM escalation merits expedited treatment, tempered by high complexity, existing privileges and required user interaction. Credit is conditional on identifying and restricting the actual network/privileged entry path; neither generic MFA nor a VLAN proves that.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69757"
+    },
+    {
+      "cve": "CVE-2026-69282",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": true,
+      "findings": [
+        "priority-judgment-difference",
+        "missing-review-flag"
+      ],
+      "independent_rationale": "Low-level SharePoint list permissions can reach server code loading before authorization checks, so shared-server compromise warrants expedited patching. Review Subscription Edition product scope versus the Server 2016 FAQ and install all applicable packages. Controls must restrict the named list/event-receiver or service access path; application control is not automatically effective inside SharePoint.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69282"
+    },
+    {
+      "cve": "CVE-2026-69510",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [
+        "priority-judgment-difference"
+      ],
+      "independent_rationale": "I prefer expedited handling for an enabled shared DHCP service: unauthenticated packet-triggered RCE has high CIA impact. High complexity and particular configurations make normal scheduling defensible only after exposure/prerequisites are assessed. Verified network restrictions can reduce opportunity; generic authentication cannot block a pre-auth path.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69510"
+    },
+    {
+      "cve": "CVE-2026-81948",
+      "site_priority": "Expedited",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": true,
+      "independent_review_required": true,
+      "findings": [],
+      "independent_rationale": "Microsoft Critical Excel RCE requires a victim to open a malicious file; Preview Pane is explicitly not a trigger. Prioritize an available update and review the pending Mac LTSC variants. Blocking the actual file-delivery route may help; network ACL, generic Protected View, macro blocking and WDAC are not proven parser prevention.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-81948"
+    },
+    {
+      "cve": "CVE-2026-80806",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Azure Linux ext4 encrypted-file/DAX issue has local high-privilege and high-complexity prerequisites with confidentiality-only impact. Routine kernel patching is proportionate. Only verified removal of required privileged access can earn conditional likelihood credit; title alone does not establish a safe DAX workaround or network control.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-80806"
+    },
+    {
+      "cve": "CVE-2026-84335",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": true,
+      "independent_review_required": true,
+      "findings": [
+        "missing-severity-default"
+      ],
+      "independent_rationale": "Edge/Chromium advisory lacks CVSS and exploit prerequisites. Confirm the fixed Edge build recorded in the source and keep normal browser updating, with review required before relying on detailed risk or control claims. No named mitigation is supported by this packet.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-84335"
+    },
+    {
+      "cve": "CVE-2026-69469",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "USB audio privilege escalation requires physical attack and user interaction, despite possible SYSTEM impact. Routine patching fits current evidence. The catalogue's network isolation is not physical USB/device control, and removing admin privileges does not block an attacker who starts without privileges.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69469"
+    },
+    {
+      "cve": "CVE-2026-62744",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Low evidence",
+      "independent_likelihood": "Low evidence",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Media Foundation RCE requires opening a crafted file; AV:N describes delivery, not an inbound service. Microsoft Unlikely and EPSS below 1% support Low evidence. Exact content-delivery blocking may help; generic ingress removal or application control does not establish prevention.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-62744"
+    },
+    {
+      "cve": "CVE-2026-72981",
+      "site_priority": "Expedited",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Critical IP Helper RCE is unauthenticated and interaction-free, but requires a race condition and is Less Likely. Expedited is warranted; Emergency is not established. Network controls require verified endpoint/path restrictions, with no authentication or generic EDR prevention credit.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-72981"
+    },
+    {
+      "cve": "CVE-2026-80080",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": true,
+      "independent_review_required": true,
+      "findings": [],
+      "independent_rationale": "Important Word RCE requires opening a malicious file; Preview Pane is explicitly excluded. Routine cadence is reasonable absent exploitation. Review the Mac LTSC fix availability exception. Exact content filtering can reduce delivery; a generic macro/PV policy is not evidence against double-free exploitation.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-80080"
+    },
+    {
+      "cve": "CVE-2026-84358",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": true,
+      "independent_review_required": true,
+      "findings": [
+        "missing-severity-default"
+      ],
+      "independent_rationale": "Low-severity Chromium Downloads advisory lacks exploit metrics. Confirm the source's fixed Edge version and retain a review marker; do not invent local/network, privilege or control prerequisites from the component name.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-84358"
+    },
+    {
+      "cve": "CVE-2026-18149",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": true,
+      "findings": [
+        "missing-review-flag",
+        "unsupported-ingress-mitigation"
+      ],
+      "independent_rationale": "Undici RetryHandler response-body exhaustion is an HTTP-client/retry-path concern; AV:N does not establish a public Node.js listener. Moderate severity, high complexity and absent exploitation support routine patching. Review actual request/response direction and deployment before any ingress or ACL discount; current evidence is insufficient for a generic public-ingress claim.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-18149"
+    },
+    {
+      "cve": "CVE-2026-67378",
+      "site_priority": "Expedited",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Critical authenticated SQL server RCE has high complexity and configuration prerequisites but changed-scope high CIA impact. Expedite. Restrict actual SQL connection/permission paths conditionally; ordinary low-privilege users remain capable if the vulnerable request stays allowed.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-67378"
+    },
+    {
+      "cve": "CVE-2026-69380",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [
+        "priority-judgment-difference"
+      ],
+      "independent_rationale": "A low-privilege mailbox user can impersonate other users and take over all mailboxes, giving broad confidentiality/integrity impact on shared messaging. I prefer expedited treatment. Generic MFA/PAM does not prevent a legitimately authenticated mailbox user from exploiting the missing authorization; any discount needs a specific blocking control or restricted affected service route.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69380"
+    },
+    {
+      "cve": "CVE-2026-69615",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Low evidence",
+      "independent_likelihood": "Low evidence",
+      "site_review_required": false,
+      "independent_review_required": true,
+      "findings": [
+        "missing-review-flag"
+      ],
+      "independent_rationale": "SharePoint XSS requires administrator privileges and convincing a victim to open malicious content; low CIA impact and Unlikely support routine patching. Review the Subscription Edition versus Server 2016 scope discrepancy. Removing the specific admin prerequisite is meaningful; generic filtering of a trusted SharePoint site or WAF presence is not automatically preventive.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69615"
+    },
+    {
+      "cve": "CVE-2026-80098",
+      "site_priority": "No customer action",
+      "independent_priority": "No customer action",
+      "site_likelihood": "Low evidence",
+      "independent_likelihood": "Low evidence",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Microsoft explicitly says the hosted Copilot Studio flaw is fully mitigated with no customer action. Preserve historical Critical CVSS without manufacturing customer patch work or mitigation discounts.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-80098"
+    },
+    {
+      "cve": "CVE-2026-80843",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [
+        "conservative-pam-inconsistency"
+      ],
+      "independent_rationale": "The Azure Linux xfrm auth-trunc leak has local high-privilege prerequisites and availability-only low impact. Do not mistake resource leakage for credential disclosure. Routine kernel updates are appropriate; conditional removal of the necessary privileged access is the only broad catalogue candidate supported by CVSS.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-80843"
+    },
+    {
+      "cve": "CVE-2026-72980",
+      "site_priority": "Expedited",
+      "independent_priority": "Expedited",
+      "site_likelihood": "Low evidence",
+      "independent_likelihood": "Low evidence",
+      "site_review_required": false,
+      "independent_review_required": false,
+      "findings": [],
+      "independent_rationale": "Retain expedited handling in light of Microsoft's Critical Windows Hello security-boundary classification, while distinguishing low evidence from technical severity. The local high-privilege prerequisite and narrow disclosed impact temper urgency. Generic MFA/Hello feature configuration is not a documented bypass workaround; restricting qualifying admin access is conditional only.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-72980"
+    },
+    {
+      "cve": "CVE-2026-69402",
+      "site_priority": "Normal scheduled",
+      "independent_priority": "Normal scheduled",
+      "site_likelihood": "Plausible",
+      "independent_likelihood": "Plausible",
+      "site_review_required": false,
+      "independent_review_required": true,
+      "findings": [
+        "missing-review-flag"
+      ],
+      "independent_rationale": "Authenticated SharePoint stored content requires another user to visit/interact, supporting routine cadence absent exploitation. Review Subscription Edition/2016 scope and all applicable packages. Restrict actual upload permissions or a specifically blocked malicious-content route; do not assume generic WAF, app control or domain filtering prevents same-origin XSS.",
+      "source_url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69402"
+    }
+  ],
+  "method": "One uniform draw without replacement using Python random.Random(seed).sample(sorted(CVE IDs), 20). Independent judgments were recorded before inspecting the current Luna outputs. Previous conversation context remained available.",
+  "summary": {
+    "priority_agreement": 17,
+    "likelihood_agreement": 20,
+    "raw_cvss_representation_match": 20,
+    "raw_severity_supported": 18,
+    "unsupported_severity_defaults": 2,
+    "material_mitigation_errors": 1,
+    "missing_review_flags": 4,
+    "conservative_control_consistency_notes": 1
+  },
+  "fresh_source_check": {
+    "fetched_at": "2026-09-10T04:18:17.124278+00:00",
+    "sample_source_facts_changed": 0,
+    "sample_kev_ms_likelihood_epss_changed": 0,
+    "current_msrc_count": 1186,
+    "new_cves": [
+      {
+        "cve": "CVE-2026-85046",
+        "title": "Chromium: CVE-2026-85046 Type confusion in V8"
+      }
+    ]
+  },
+  "upstream_verification": {
+    "cve": "CVE-2026-18149",
+    "url": "https://github.com/nodejs/undici/security/advisories/GHSA-pmjh-fq2x-6v4x",
+    "finding": "Malicious-server responses attack the HTTP client's RetryHandler; public-ingress removal does not establish prevention."
+  },
+  "publication_changed": false
+}

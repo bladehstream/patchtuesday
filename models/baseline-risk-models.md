@@ -2,7 +2,7 @@
 
 Model version `2026.09.1` defines a framework for the public-evidence baseline used before customer-specific exposure and controls are selected. The executable guardrails and fallback policy are in `risk-model.js`.
 
-The archetypes are reference cases, not a numeric scoring algorithm. Luna must weigh the full record and may choose an adjacent action when the evidence supports it. Hard rules protect source facts and minimum actions; they do not replace analysis.
+The archetypes are reference cases, not a numeric scoring algorithm. The assessor must weigh the full record and may choose an adjacent action when the evidence supports it. Hard rules protect source facts and minimum actions; they do not replace analysis. Follow authoring guidance 2026.09.2 in ../prompts/assessor-evidence-guidance.md; that revision does not change this executable model's version.
 
 ## Required separation
 
@@ -73,14 +73,14 @@ Use when none of the higher archetypes apply. Baseline action is Scheduled. Defe
 - Content controls require an evidence-backed content delivery path.
 - Authentication and privilege controls must agree with the CVSS privileges-required metric and Microsoft description.
 
-## Luna output requirements
+## Assessor output requirements
 
-For every reviewed CVE, Luna must return:
+For every reviewed CVE, the assessor must return:
 
 - Exact `cvss_basis` copied from the normalized Microsoft record
 - `risk_model_version` equal to `2026.09.1`
 - `baseline_model` selected from the six archetypes above
-- `baseline_likelihood` and `baseline_action` matching the executable model
+- `baseline_likelihood` and `baseline_action` using the accepted vocabulary and respecting evidence floors, with an independent explanation of the chosen priority
 - A `factors` assessment covering applicability, threat evidence, exploitability, technical impact, workload context, remediation context and uncertainty
 - Evidence-grounded mitigation candidates
 - `risk_communication` with `summary`, `why_this_action`, `control_limitations` and `reassessment_triggers`
@@ -89,7 +89,7 @@ The merge rejects a CVSS mismatch, an unknown model or rating, violation of a ha
 
 ## Framework reasoning sequence
 
-Luna should reason in this order without converting the factors into an invented arithmetic score:
+The assessor should reason in this order without converting the factors into an invented arithmetic score:
 
 1. Confirm applicability and whether Microsoft requires customer action.
 2. Establish threat evidence from Microsoft exploitation status, KEV, public disclosure and EPSS, including conflicts and freshness.
