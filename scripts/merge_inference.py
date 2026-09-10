@@ -9,6 +9,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
+RISK_MODEL_VERSION = "2026.09.1"
+BASELINE_MODELS = {"no-customer-action", "active-exploitation", "critical-preauth-network-rce", "critical-technical", "elevated-high-severity", "standard-remediation"}
+LIKELIHOODS = ["Low evidence", "Plausible", "Elevated", "Active"]
+ACTIONS = ["Defer and review", "Scheduled", "Out-of-cycle", "Immediate"]
+REQUIRED_FACTORS = {"applicability", "threat_evidence", "exploitability", "technical_impact", "workload_context", "remediation_context", "uncertainty"}
+REQUIRED_COMMUNICATION = {"summary", "why_this_action", "control_limitations", "reassessment_triggers"}
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -91,6 +97,79 @@ def validate_path_compatibility(overlay: dict, baseline: dict) -> None:
             raise ValueError(f"{cve}: {mitigation_id} cannot reduce exploit likelihood")
 
 
+def critical_pre_auth_network_rce(record: dict) -> bool:
+    return (
+        float(record.get("cvss", {}).get("base_score") or 0) >= 9
+        and record.get("attack", {}).get("vector") == "network"
+        and record.get("attack", {}).get("privileges_required") == "none"
+        and record.get("attack", {}).get("user_interaction") == "none"
+        and "remote-code-execution" in set(record.get("tags") or [])
+    )
+
+
+def public_threat_likelihood(record: dict) -> int:
+    """Return the minimum evidence band implied by public, machine-sourced facts."""
+    threat = record.get("threat", {})
+    if threat.get("kev") or threat.get("exploitation_detected"):
+        return 3
+    likelihood = {
+        "detected": 3,
+        "more-likely": 2,
+        "less-likely": 1,
+        "unlikely": 0,
+        "unknown": 1,
+    }.get(threat.get("exploitation_assessment"), 1)
+    epss = threat.get("epss")
+    if epss is not None:
+        if float(epss) >= 0.10:
+            likelihood = max(likelihood, 2)
+        elif float(epss) >= 0.01:
+            likelihood = max(likelihood, 1)
+    return likelihood
+
+
+def validate_framework_assessment(overlay: dict, baseline: dict) -> None:
+    cve = baseline["cve"]
+    assessment = overlay.get("framework_assessment")
+    if not isinstance(assessment, dict):
+        raise ValueError(f"{cve}: framework_assessment is required")
+    if assessment.get("risk_model_version") != RISK_MODEL_VERSION:
+        raise ValueError(f"{cve}: risk model version must be {RISK_MODEL_VERSION}")
+    if assessment.get("baseline_model") not in BASELINE_MODELS:
+        raise ValueError(f"{cve}: unknown baseline model")
+    if assessment.get("baseline_likelihood") not in LIKELIHOODS:
+        raise ValueError(f"{cve}: invalid baseline likelihood")
+    if assessment.get("baseline_action") not in ACTIONS:
+        raise ValueError(f"{cve}: invalid baseline action")
+    if assessment.get("confidence") not in {"high", "medium", "low"}:
+        raise ValueError(f"{cve}: invalid framework confidence")
+    factors = assessment.get("factors") or {}
+    missing_factors = REQUIRED_FACTORS - set(factors)
+    if missing_factors or any(not str(factors.get(field) or "").strip() for field in REQUIRED_FACTORS):
+        raise ValueError(f"{cve}: incomplete framework factors {sorted(missing_factors)}")
+    communication = assessment.get("risk_communication") or {}
+    missing_communication = REQUIRED_COMMUNICATION - set(communication)
+    if missing_communication or any(not communication.get(field) for field in REQUIRED_COMMUNICATION):
+        raise ValueError(f"{cve}: incomplete risk communication {sorted(missing_communication)}")
+
+    action_index = ACTIONS.index(assessment["baseline_action"])
+    likelihood_index = LIKELIHOODS.index(assessment["baseline_likelihood"])
+    threat = baseline.get("threat", {})
+    if baseline.get("customer_action_required") is False:
+        if assessment["baseline_model"] != "no-customer-action" or action_index != 0:
+            raise ValueError(f"{cve}: Microsoft no-customer-action guidance requires the no-customer-action model")
+    elif threat.get("kev") or threat.get("exploitation_detected"):
+        if assessment["baseline_model"] != "active-exploitation" or action_index != 3 or likelihood_index != 3:
+            raise ValueError(f"{cve}: confirmed exploitation requires Active and Immediate")
+    elif critical_pre_auth_network_rce(baseline):
+        if action_index < 2:
+            raise ValueError(f"{cve}: critical pre-authentication network RCE requires at least Out-of-cycle")
+        if public_threat_likelihood(baseline) >= 2 and assessment["baseline_model"] != "critical-preauth-network-rce":
+            raise ValueError(f"{cve}: elevated critical pre-authentication network RCE requires its archetype")
+    if threat.get("exploitation_assessment") == "more-likely" and likelihood_index < 2:
+        raise ValueError(f"{cve}: Microsoft More Likely cannot be assessed below Elevated")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", required=True, type=Path)
@@ -114,6 +193,7 @@ def main() -> None:
             raise ValueError(f"Duplicate inference CVE: {cve}")
         seen.add(cve)
         validate_cvss_basis(overlay, baseline[cve])
+        validate_framework_assessment(overlay, baseline[cve])
         inferred_tags = set(overlay.get("tags") or [])
         unknown_tags = inferred_tags - tags_allowed
         if unknown_tags:
@@ -127,6 +207,7 @@ def main() -> None:
         record["mitigation_candidates"] = candidates
         record["inference"] = overlay.get("inference") or {}
         record["inference"]["review_status"] = "reviewed"
+        record["inference"]["framework_assessment"] = overlay["framework_assessment"]
         merged.append(record)
 
     if args.include_unreviewed:

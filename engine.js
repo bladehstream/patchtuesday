@@ -1,79 +1,69 @@
-export const ACTIONS = ["Defer and review", "Scheduled", "Out-of-cycle", "Immediate"];
-export const LIKELIHOOD = ["Low evidence", "Plausible", "Elevated", "Active"];
+import { RISK_MODEL, isCriticalPreAuthNetworkRce, selectBaselineModel } from "./risk-model.js?v=2026.09.1";
 
-const severityRank = { Critical: 4, Important: 3, Moderate: 2, Low: 1 };
-
-export function isCriticalPreAuthNetworkRce(record) {
-  return Number(record.cvss?.base_score || 0) >= 9
-    && record.attack?.vector === "network"
-    && record.attack?.privileges_required === "none"
-    && record.attack?.user_interaction === "none"
-    && (record.tags || []).includes("remote-code-execution");
-}
+export const ACTIONS = RISK_MODEL.actionLabels;
+export const LIKELIHOOD = RISK_MODEL.likelihoodLabels;
+export { isCriticalPreAuthNetworkRce };
 
 export function baselineProfile(record) {
   const threat = record.threat || {};
-  const vector = (record.attack || {}).vector || "unknown";
-  const severity = severityRank[record.severity] || 1;
-  const microsoftLikelihood = {
-    detected: 3,
-    "more-likely": 2,
-    "less-likely": 1,
-    unlikely: 0,
-    unknown: 1,
-  }[threat.exploitation_assessment] ?? 1;
+  const microsoftLikelihood = RISK_MODEL.microsoftLikelihood[threat.exploitation_assessment] ?? RISK_MODEL.microsoftLikelihood.unknown;
   let likelihood = microsoftLikelihood;
-  let action = 1;
   const reasons = [`Microsoft exploitation assessment: ${formatMicrosoftAssessment(threat.exploitation_assessment)}`];
 
   if (record.customer_action_required === false) {
-    return { likelihood: 0, action: 0, reasons: ["Microsoft states that no customer action is required"] };
+    const [modelId, model] = selectBaselineModel(record, 0);
+    return { likelihood: 0, action: model.action, model: modelId, modelVersion: RISK_MODEL.version, reasons: [model.reason] };
+  }
+
+  if (threat.kev || threat.exploitation_detected) {
+    likelihood = 3;
+    reasons.push(threat.kev ? "CISA KEV" : "Microsoft exploitation detected");
+  }
+
+  if ((threat.epss || 0) >= RISK_MODEL.epss.elevatedScore) {
+    likelihood = Math.max(likelihood, 2);
+    reasons.push("EPSS provides elevated exploitation evidence");
+  } else if ((threat.epss || 0) >= RISK_MODEL.epss.plausibleScore) {
+    likelihood = Math.max(likelihood, 1);
+    reasons.push("EPSS provides additional exploitation evidence");
+  }
+
+  const [fallbackModelId, fallbackModel] = selectBaselineModel(record, likelihood);
+  let modelId = fallbackModelId;
+  let model = fallbackModel;
+  let action = model.action;
+  const framework = record.inference?.framework_assessment;
+  if (framework?.risk_model_version === RISK_MODEL.version
+      && RISK_MODEL.framework.allowedLikelihoods.includes(framework.baseline_likelihood)
+      && RISK_MODEL.framework.allowedActions.includes(framework.baseline_action)
+      && RISK_MODEL.baselineModels[framework.baseline_model]) {
+    likelihood = LIKELIHOOD.indexOf(framework.baseline_likelihood);
+    action = ACTIONS.indexOf(framework.baseline_action);
+    modelId = framework.baseline_model;
+    model = RISK_MODEL.baselineModels[modelId];
+    reasons.push(`Framework assessment: ${framework.risk_communication?.why_this_action || model.reason}`);
+  } else {
+    reasons.push(model.reason);
   }
 
   if (threat.kev || threat.exploitation_detected) {
     likelihood = 3;
     action = 3;
-    reasons.push(threat.kev ? "CISA KEV" : "Microsoft exploitation detected");
+    modelId = "active-exploitation";
+    model = RISK_MODEL.baselineModels[modelId];
   }
 
-  if ((threat.epss || 0) >= 0.1) {
-    likelihood = Math.max(likelihood, 2);
-    reasons.push("EPSS provides elevated exploitation evidence");
-  } else if ((threat.epss || 0) >= 0.01) {
-    likelihood = Math.max(likelihood, 1);
-    reasons.push("EPSS provides additional exploitation evidence");
-  }
+  if (isCriticalPreAuthNetworkRce(record) && likelihood >= 2) action = Math.max(action, 2);
 
-  if (action < 3 && isCriticalPreAuthNetworkRce(record) && likelihood >= 2) {
-    action = 3;
-    reasons.push("Critical pre-authentication network RCE with elevated exploitation evidence");
-  } else if (action < 3 && severity === 4) {
-    action = 2;
-    reasons.push("Critical technical severity");
-  } else if (action < 3 && likelihood >= 2 && severity >= 3) {
-    action = 2;
-    reasons.push("Elevated exploitation likelihood and high technical severity");
-  } else if (severity <= 2) {
-    action = 1;
-    reasons.push("No current high-confidence exploitation evidence");
-  } else if (action < 2) {
-    reasons.push("Important severity requires scheduled remediation");
-  }
-
-  if (vector === "network" && (record.attack || {}).privileges_required === "none") {
-    action = Math.max(action, 2);
-    reasons.push("Network reachable without privileges");
-  }
-
-  return { likelihood, action, reasons };
+  return { likelihood, action, model: modelId, modelVersion: RISK_MODEL.version, reasons };
 }
 
 export function predictProfile(record, selectedMitigations = new Set()) {
   const base = baselineProfile(record);
   if (record.customer_action_required === false) {
     return {
-      baseline: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action] },
-      residual: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action] },
+      baseline: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action], model: base.model, model_version: base.modelVersion },
+      residual: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action], model: base.model, model_version: base.modelVersion },
       applied: [],
       ignored: [],
       reasons: base.reasons,
@@ -96,28 +86,26 @@ export function predictProfile(record, selectedMitigations = new Set()) {
     applied.push(candidate);
   }
 
-  const active = Boolean(record.threat?.kev || record.threat?.exploitation_detected);
   const specialPathBlock = applied.some(item => item.effect?.path_block === true && item.confidence === "high");
-  const urgentPreAuthRce = isCriticalPreAuthNetworkRce(record) && base.action === 3 && base.likelihood >= 2;
-  const maxLikelihoodCredit = specialPathBlock ? 2 : 1;
+  const model = RISK_MODEL.baselineModels[base.model];
+  const maxLikelihoodCredit = specialPathBlock ? RISK_MODEL.mitigation.exactPathBlockLikelihoodCreditCap : RISK_MODEL.mitigation.ordinaryLikelihoodCreditCap;
   likelihoodCredit = Math.min(likelihoodCredit, maxLikelihoodCredit);
-  consequenceCredit = Math.min(consequenceCredit, 1);
+  consequenceCredit = Math.min(consequenceCredit, RISK_MODEL.mitigation.consequenceCreditCap);
 
   const residualLikelihood = Math.max(0, base.likelihood - likelihoodCredit);
   let residualAction = base.action;
   if (likelihoodCredit >= 1 || consequenceCredit >= 1) residualAction -= 1;
   if (likelihoodCredit >= 2 && consequenceCredit >= 1) residualAction -= 1;
-  const actionFloor = active || (urgentPreAuthRce && !specialPathBlock) ? 2 : 0;
+  const actionFloor = specialPathBlock ? model.floorWithPathBlock : model.floorWithoutPathBlock;
   residualAction = Math.max(actionFloor, residualAction);
 
   const reasons = [...base.reasons];
   if (applied.length) reasons.push(`${applied.length} verified exploit-relevant mitigation${applied.length === 1 ? "" : "s"} applied`);
-  if (active && residualAction === 2) reasons.push("Active exploitation enforces an out-of-cycle floor");
-  if (urgentPreAuthRce && !specialPathBlock && residualAction === 2) reasons.push("Critical pre-authentication network RCE enforces an out-of-cycle floor without an exact path-blocking workaround");
+  if (actionFloor === 2 && residualAction === 2) reasons.push(`${model.reason}; the model enforces an out-of-cycle remediation floor`);
 
   return {
-    baseline: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action] },
-    residual: { likelihood: LIKELIHOOD[residualLikelihood], action: ACTIONS[residualAction] },
+    baseline: { likelihood: LIKELIHOOD[base.likelihood], action: ACTIONS[base.action], model: base.model, model_version: base.modelVersion },
+    residual: { likelihood: LIKELIHOOD[residualLikelihood], action: ACTIONS[residualAction], model: base.model, model_version: base.modelVersion },
     applied,
     ignored,
     reasons,

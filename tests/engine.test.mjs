@@ -42,6 +42,37 @@ const moreLikely = {
 };
 assert.equal(predictProfile(moreLikely, new Set()).baseline.likelihood, "Elevated");
 
+const frameworkReviewed = {
+  ...moreLikely,
+  severity: "Important",
+  inference: {
+    framework_assessment: {
+      risk_model_version: "2026.09.1",
+      baseline_model: "elevated-high-severity",
+      baseline_likelihood: "Elevated",
+      baseline_action: "Immediate",
+      risk_communication: { why_this_action: "Combined threat and workload evidence warrants immediate triage." },
+    },
+  },
+};
+const frameworkProfile = predictProfile(frameworkReviewed, new Set());
+assert.equal(frameworkProfile.baseline.action, "Immediate", "A validated framework assessment may refine the fallback archetype");
+assert.equal(frameworkProfile.baseline.model, "elevated-high-severity");
+assert.equal(frameworkProfile.baseline.model_version, "2026.09.1");
+
+const ordinaryNetworkIssue = {
+  ...moreLikely,
+  severity: "Moderate",
+  attack: { vector: "network", privileges_required: "none", user_interaction: "required" },
+  threat: { exploitation_assessment: "unlikely", kev: false, exploitation_detected: false, epss: 0.001 },
+  tags: ["information-disclosure"],
+};
+assert.equal(
+  predictProfile(ordinaryNetworkIssue, new Set()).baseline.action,
+  "Scheduled",
+  "Network reachability alone must not trigger an out-of-cycle deterministic floor",
+);
+
 const searchable = {
   ...unlikelyCritical,
   cve: "CVE-2026-69829",

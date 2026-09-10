@@ -18,7 +18,7 @@ python scripts/enrich_cvrf.py --cvrf raw/2026-Sep.json --month 2026-Sep --kev ra
 python scripts/merge_inference.py --baseline work/2026-Sep-baseline.jsonl --inference inference/2026-Sep-luna.jsonl --include-unreviewed --output work/2026-Sep-curated.jsonl
 ```
 
-The fetcher retrieves the complete MSRC CVRF release, CISA KEV catalogue and FIRST EPSS daily CSV directly from their public endpoints. It records URLs, retrieval time, sizes and SHA-256 hashes. The CVRF parser preserves Microsoft facts and adds deterministic baseline tags. The inference JSONL supplies only curated workload tags and mitigation candidates that follow `prompts/enrichment-system.md`. The merge step rejects unknown CVEs, tags, mitigation IDs, unsupported effect values and unjustified path-block claims.
+The fetcher retrieves the complete MSRC CVRF release, CISA KEV catalogue and FIRST EPSS daily CSV directly from their public endpoints. It records URLs, retrieval time, sizes and SHA-256 hashes. The CVRF parser preserves Microsoft facts and adds deterministic baseline tags. The inference JSONL supplies a framework-based risk assessment, curated workload tags and mitigation candidates that follow `prompts/enrichment-system.md` and the reference cases in `models/baseline-risk-models.md`. The reference cases are anchors rather than a numeric scoring formula: the model weighs the complete evidence set and records its reasoning across applicability, threat evidence, exploitability, impact, workload, remediation and uncertainty. The merge step validates source fidelity and enforces only explicit safety floors such as confirmed exploitation and elevated critical pre-authentication network RCE.
 
 ## Publish an enriched month
 
@@ -50,12 +50,13 @@ npm run build
 
 The refresher downloads FIRST's complete daily CSV and then batch-queries the official API for target CVEs still absent from that file. Missing values remain `pending`; existing values are never converted to zero. A scheduled GitHub workflow runs this check daily and commits only when published EPSS fields change. Cloudflare Pages then rebuilds from that commit.
 
-## Risk adjustment contract
+## Risk assessment contract
 
-- Microsoft's Exploitability Index directly sets the baseline likelihood: Detected maps to Active, More Likely to Elevated, Less Likely to Plausible, and Unlikely to Low Evidence.
+- Reviewed records use the framework assessment produced by the local inference pass; unreviewed records use the deterministic fallback.
+- Microsoft's Exploitability Index is mandatory evidence: Detected maps to Active, More Likely sets an Elevated floor, Less Likely supports Plausible, and Unlikely supports Low Evidence unless stronger evidence is present.
 - CISA KEV or Microsoft-confirmed exploitation overrides the baseline likelihood to Active.
 - EPSS contributes independent forecast evidence when a score is available.
-- CVSS severity, attack vector, privileges and user interaction determine technical consequence and patch cadence; they do not overwrite the Microsoft likelihood label.
+- CVSS severity and the complete vector—including attack complexity, privileges, user interaction, scope and impacts—inform exploitability, consequence and patch cadence; they do not erase contradictory threat evidence.
 - Only mitigations marked relevant by the monthly inference record receive credit.
 - Low-confidence and not-relevant mitigations receive no credit.
 - Ordinary controls can reduce predicted likelihood by at most one band.

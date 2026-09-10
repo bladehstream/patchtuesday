@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js";
+import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.1";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
@@ -172,6 +172,8 @@ function render() {
 }
 
 function riskInterpretation(record, profile) {
+  const reviewed = record.inference?.framework_assessment?.risk_communication;
+  if (reviewed?.summary) return reviewed.summary;
   if (record.customer_action_required === false) return "Microsoft states that this service has already been mitigated and no customer action is required.";
   if (record.threat.kev || record.threat.exploitation_detected) return "Immediate action is driven by confirmed exploitation. CVSS describes technical impact, but observed exploitation determines present urgency.";
   if (isCriticalPreAuthNetworkRce(record) && profile.baseline.likelihood === "Elevated") return "Immediate action is driven by the combination of Critical impact, unauthenticated network reachability, no user interaction, remote code execution, and elevated Microsoft exploitation likelihood.";
@@ -187,6 +189,7 @@ function renderDetail() {
   }
   const profile = predictProfile(record, state.selectedMitigations);
   const relevant = record.mitigation_candidates.filter(item => item.relevance !== "not-relevant");
+  const framework = record.inference?.framework_assessment;
   $("detail-panel").innerHTML = `
     <h2>${escapeHtml(record.cve)}</h2>
     <p class="detail-meta">${escapeHtml(record.severity)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
@@ -194,6 +197,7 @@ function renderDetail() {
     <h3>Risk assessment</h3>
     <dl class="risk-breakdown">
       <dt>Threat likelihood</dt><dd>${escapeHtml(profile.baseline.likelihood)}</dd>
+      <dt>Baseline model</dt><dd>${escapeHtml(profile.baseline.model || "deterministic fallback")}</dd>
       <dt>Microsoft</dt><dd>${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</dd>
       <dt>CVSS</dt><dd>${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</dd>
       <dt>Exploit path</dt><dd>${escapeHtml(record.attack.vector)} · privileges ${escapeHtml(record.attack.privileges_required)} · interaction ${escapeHtml(record.attack.user_interaction)}</dd>
@@ -202,6 +206,13 @@ function renderDetail() {
     </dl>
     <p class="risk-interpretation">${escapeHtml(riskInterpretation(record, profile))}</p>
     <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+    ${framework ? `<div class="framework-review">
+      <h3>Framework review</h3>
+      <p><strong>Why this action:</strong> ${escapeHtml(framework.risk_communication.why_this_action)}</p>
+      <p><strong>Control limitations:</strong> ${escapeHtml(framework.risk_communication.control_limitations)}</p>
+      <p><strong>Reassess when:</strong> ${framework.risk_communication.reassessment_triggers.map(item => escapeHtml(item)).join("; ")}</p>
+      <p class="detail-meta">Model ${escapeHtml(framework.risk_model_version)} · ${escapeHtml(framework.confidence)} confidence</p>
+    </div>` : ""}
     <h3>Relevant mitigation inference</h3>
     ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
     <h3>Inference record</h3>
