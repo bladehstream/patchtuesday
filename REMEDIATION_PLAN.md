@@ -600,12 +600,31 @@ baked into it.
 - A new provider adapter is defined by the fields it must produce, not by who
   produces them: prompt, response, model identifier, timestamps, per-CVE coverage.
 
-**The honesty problem this creates, stated explicitly.** The Luna path recorded
-`response_sha256`, `input_sha256` and a batch filename because it made HTTP calls to
-a metered API. A subagent invocation has no such receipt. The adapter must record
-what actually exists - invocation identifier, configured model, session, timestamps,
-and locally computed hashes of the exact prompt and response - and must **not**
-synthesise fields that only exist for an HTTP API.
+**Corrected 2026-09-10.** An earlier revision of this section claimed the Luna path
+recorded `response_sha256` and `input_sha256` because it made HTTP calls to a metered
+API. That was wrong. `scripts/run_luna_inference.py` shells out to the **local Codex
+CLI** (`codex exec --sandbox read-only --output-schema -m gpt-5.6-luna`) as a
+subprocess and hashes the response file the CLI writes. Authentication belongs to the
+CLI's own sign-in; this repository has never held a model API key.
+`models/2026-Sep-full-inference.md` records it plainly: 81 calls of 15 advisory
+records each, "through the authenticated local CLI".
+
+The only direct HTTP this project performs is `scripts/fetch_sources.py`, fetching
+public advisory data from MSRC, CISA KEV and EPSS - unauthenticated, and not model
+inference.
+
+This makes the provider adapter **easier**, not harder. A Codex CLI subprocess and a
+Claude subagent are the same shape: local invocation, captured response file, locally
+computed hash. The existing provenance fields carry over honestly; nothing needs
+synthesising.
+
+**The one capability that does not carry over is schema enforcement.** Codex was
+invoked with `--output-schema`, so the response was structurally constrained before
+it reached the script, which then hard-failed if the returned CVE set did not match
+the requested set exactly. A subagent returns text. The adapter must therefore
+validate strictly against the same JSON schema, retry within the bounded-failure
+limits of section 3, and **record a malformed response as a failure rather than
+repairing it**. This matters more with a smaller model, not less.
 
 Further: the configured model identifier is assertable; the serving model is not.
 This environment's own guidance is that the serving model can differ from the

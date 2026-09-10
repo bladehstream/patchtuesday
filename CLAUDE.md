@@ -73,10 +73,16 @@ implementation, not an assumption.
 - `scripts/run_luna_inference.py` and `scripts/collect_full_inference.py` are
   Luna-specific. Do not run them for another provider and never relabel output to
   pass their provenance checks.
-- A provider adapter records what actually exists. A subagent invocation has no HTTP
-  receipt, so record the invocation id, configured model, session and timestamps
-  plus locally computed hashes of the exact prompt and response. Do not synthesise
-  `response_sha256`-style fields that only exist for a metered API.
+- Luna inference ran through the **local Codex CLI** as a subprocess
+  (`codex exec --sandbox read-only --output-schema -m gpt-5.6-luna`), authenticated
+  by the CLI's own sign-in. This repo has never held a model API key. The only direct
+  HTTP is `fetch_sources.py` pulling public MSRC/KEV/EPSS data.
+- A subagent is the same shape as that subprocess: local invocation, captured
+  response, locally computed hash. The existing provenance fields carry over as-is.
+- What does **not** carry over is `--output-schema`. Codex constrained the response
+  structurally before the script saw it. A subagent returns text, so validate
+  strictly against the same schema, retry within bounds, and record a malformed
+  response as a failure rather than repairing it.
 - `model_configured` is assertable; `model_served` is not, because the serving model
   can differ from the configured one. Leave it null rather than guessing. Same rule
   as the source data: highlight what is missing, never inherit a fabricated value.
