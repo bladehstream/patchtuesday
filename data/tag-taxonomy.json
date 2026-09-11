@@ -5,13 +5,23 @@
       "microsoft"
     ],
     "platform": [
-      "windows",
-      "office",
-      "sharepoint",
       "azure",
-      "sql-server",
+      "copilot-studio",
+      "dotnet",
+      "dynamics-365",
+      "edge",
+      "entra-id",
+      "exchange",
+      "fabric",
+      "office",
+      "power-platform",
+      "sharepoint",
       "skype-for-business",
-      "copilot-studio"
+      "sql-server",
+      "teams",
+      "visual-studio",
+      "vscode",
+      "windows"
     ],
     "deployment": [
       "server",
@@ -20,6 +30,7 @@
       "identity-control-plane"
     ],
     "release": [
+      "server-2012",
       "windows-10",
       "windows-11",
       "server-2016",

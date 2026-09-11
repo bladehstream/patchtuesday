@@ -23,6 +23,11 @@ from typing import Any, Iterable
 # Judgement tags - impact, delivery, workload - are NOT derived here. They come from
 # the inference overlay with cited evidence. See docs and CLAUDE.md.
 PRODUCT_TAG_RULES: tuple[tuple[str, str], ...] = (
+    # Server 2012 and 2012 R2 are distinct SKUs but one patching decision for an
+    # administrator, so they share a tag. 419 records listed a 2012 product while
+    # no rule existed for it, making the third-largest server population in the
+    # September dataset unreachable by any filter.
+    ("server-2012", "windows server 2012"),
     ("server-2016", "windows server 2016"),
     ("server-2019", "windows server 2019"),
     ("server-2022", "windows server 2022"),
@@ -36,10 +41,25 @@ PRODUCT_TAG_RULES: tuple[tuple[str, str], ...] = (
     ("sql-server", "sql server"),
     ("skype-for-business", "skype for business"),
     ("copilot-studio", "copilot studio"),
+    # Added 2026-09-11 after measuring filter reachability: 64 of 1185 published
+    # records (5.4%) could be reached by no product filter except "microsoft",
+    # making them invisible to an administrator asking "does this affect anything
+    # I run". Microsoft Edge alone accounted for 23 of them.
+    ("edge", "microsoft edge"),
+    ("exchange", "exchange server"),
+    ("teams", "microsoft teams"),
+    ("vscode", "visual studio code"),
+    ("visual-studio", "microsoft visual studio"),
+    ("dotnet", ".net"),
+    ("dynamics-365", "dynamics 365"),
+    ("power-platform", "power platform"),
+    ("power-platform", "power automate"),
+    ("entra-id", "entra id"),
+    ("fabric", "microsoft fabric"),
 )
 
 ENDPOINT_RELEASES = {"windows-10", "windows-11"}
-SERVER_RELEASES = {"server-2016", "server-2019", "server-2022", "server-2025"}
+SERVER_RELEASES = {"server-2012", "server-2016", "server-2019", "server-2022", "server-2025"}
 
 
 def derive_product_tags(products: list[dict[str, Any]]) -> list[str]:
@@ -54,6 +74,11 @@ def derive_product_tags(products: list[dict[str, Any]]) -> list[str]:
     for tag, needle in PRODUCT_TAG_RULES:
         if needle in names:
             tags.add(tag)
+    # "Visual Studio Code" contains "visual studio". Only claim the IDE tag when a
+    # product mentions Visual Studio outside the VS Code product name.
+    if "visual-studio" in tags and "vscode" in tags:
+        if "microsoft visual studio" not in names.replace("visual studio code", ""):
+            tags.discard("visual-studio")
     if "windows" in names:
         tags.add("windows")
     if tags & SERVER_RELEASES or "windows server" in names:
