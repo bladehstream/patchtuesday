@@ -63,6 +63,63 @@ export function frameworkIsUsable(framework) {
     && Boolean(RISK_MODEL.baselineModels[framework.baseline_model]);
 }
 
+// CVRF remediation types as MSRC uses them:
+//   2 = the fix itself (Security Update / Monthly Rollup)
+//   3 = the KB number in `subtype`, or "Release Notes" for Click-to-Run products
+//   6 = the KB article link
+// "Remediation" in CVRF means the patch, NOT a workaround. Reading it as
+// "mitigation" is what produced prose like "release-note remediation references
+// are supplied", which an administrator reasonably read as "there is something to
+// do other than patch". There is not.
+export function updateStatus(record) {
+  const remediations = record.vendor_guidance?.remediations || [];
+  const kbByProduct = new Map();
+  for (const item of remediations) {
+    const type = String(item.type);
+    if (type !== "3" && type !== "6") continue;
+    const kb = type === "3" ? (item.subtype || "") : (item.description || "");
+    for (const id of item.product_ids || []) {
+      if (kb && !kbByProduct.has(id)) kbByProduct.set(id, { kb, url: item.url || "" });
+    }
+  }
+  const fixedIds = new Set();
+  const fixKind = new Map();
+  for (const item of remediations) {
+    if (String(item.type) !== "2") continue;
+    for (const id of item.product_ids || []) {
+      fixedIds.add(id);
+      if (!fixKind.has(id)) fixKind.set(id, item.subtype || "Security Update");
+    }
+  }
+  return (record.products || []).map(product => {
+    const ref = kbByProduct.get(product.product_id) || {};
+    return {
+      product_id: product.product_id, name: product.name,
+      available: fixedIds.has(product.product_id),
+      kind: fixKind.get(product.product_id) || null,
+      kb: ref.kb || null, url: ref.url || null,
+    };
+  });
+}
+
+export function updateSummary(record, selectedProducts = new Set()) {
+  const rows = updateStatus(record);
+  const total = rows.length;
+  const available = rows.filter(row => row.available).length;
+  const recordInScope = !selectedProducts.size
+    || [...(record.product_tags || []), ...(record.tags || [])].some(tag => selectedProducts.has(tag));
+  const missingNames = rows.filter(row => !row.available).map(row => row.name);
+  return {
+    total, available, missing: total - available, rows, missingNames,
+    // Scope the flag to what the administrator runs. A late Mac LTSC build is not
+    // a reason to flag the record for a Windows-only estate, and an unfixed
+    // product only matters if the record is in scope at all.
+    flag: selectedProducts.size
+      ? recordInScope && missingNames.length > 0
+      : total > 0 && available === 0,
+  };
+}
+
 export function reviewStatus(record) {
   const reasons = [];
   const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
@@ -101,11 +158,14 @@ export function reviewStatus(record) {
     if (conflict.test(uncertainty) && !interpretationOnly.test(uncertainty)) {
       add("guidance-discrepancy", "Check the reported discrepancy in exploit, impact or product guidance.", uncertainty);
     }
-    const remediation = framework.factors?.remediation_context || "";
-    const unavailable = /\bunavailable\b|\bnot (?:immediately |currently )?available\b|\bupdates? (?:are |remain |is )?pending\b|\bno (?:immediate |currently available )?(?:security )?update (?:is )?(?:provided|stated)\b|does not state that.{0,80}updates? (?:are |is )?(?:immediately )?available/i;
-    const missingFix = /\bno remediation (?:entry|is supplied)|(?:update|patch|fix) (?:path|version|availability).{0,25}(?:not specified|unknown|not documented)/i;
-    if (unavailable.test(remediation) || missingFix.test(remediation)) {
-      add("update-availability", "Confirm update availability for your affected product/version.", remediation);
+    // Update availability comes from the vendor's structured remediation list,
+    // not from pattern-matching the model's prose. The old regex fired on any
+    // narrative mentioning a late build, which flagged every Office CVE for every
+    // reader because the Mac LTSC update was behind.
+    const updates = updateSummary(record);
+    if (updates.total > 0 && updates.available === 0) {
+      add("no-update-available", "No vendor fix is listed for any affected product.",
+          `0 of ${updates.total} affected products have a listed update`);
     }
     const base = baselineProfile(record);
     if (base.likelihood > LIKELIHOOD.indexOf(framework.baseline_likelihood)) {
@@ -273,6 +333,10 @@ export function normalizeRecord(record) {
     attack: record.attack || { vector: "unknown", privileges_required: "unknown", user_interaction: "unknown" },
     threat: record.threat || {},
     mitigation_candidates: Array.isArray(record.mitigation_candidates) ? record.mitigation_candidates : [],
+    // Carries the vendor's structured remediation list, which updateStatus reads.
+    // Omitting it here silently emptied the affected-products table: parseJsonl
+    // dropped the field, so every record looked as though no fix existed.
+    vendor_guidance: record.vendor_guidance || {},
     source: record.source || {},
     dataset_provenance: record.dataset_provenance || {},
     inference: record.inference || {},

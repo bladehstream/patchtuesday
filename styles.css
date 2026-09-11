@@ -234,3 +234,22 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
   background: #f4f4f4; border-radius: 4px; font-size: 0.78rem; color: #424242;
 }
 .match-mode strong { font-weight: 700; }
+
+/* Three-question detail layout: what is affected, what mitigates it, how urgent. */
+.affected-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.affected-table th {
+  text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #616161; border-bottom: 1px solid #ddd; padding: 4px 8px 4px 0; font-weight: 700;
+}
+.affected-table td { padding: 5px 8px 5px 0; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.affected-table .yes { color: #0b6a3a; font-weight: 650; }
+.affected-table .no { color: #8a5300; font-weight: 650; }
+.affected-table .row-pending { background: #fffbf0; }
+.affected-table .basis-cell { color: #555; }
+.table-scroll { overflow-x: auto; }
+.update-summary { margin: 4px 0 10px; font-size: 0.85rem; }
+.update-summary.all-fixed strong { color: #0b6a3a; }
+.pending-note { display: block; color: #8a5300; font-size: 0.78rem; margin-top: 2px; }
+/* Assessment prose is collapsed by default: it is context, not the answer. */
+.framework-review summary { cursor: pointer; font-size: 0.78rem; color: #555; padding: 6px 0; }
+.framework-review[open] summary { margin-bottom: 6px; }

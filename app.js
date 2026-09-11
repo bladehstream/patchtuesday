@@ -1,4 +1,4 @@
-import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, publicProfile, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.priorities";
+import { ACTIONS, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, publicProfile, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.priorities";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
@@ -289,27 +289,50 @@ function renderDetail() {
       <ul>${record.review.reasons.map(reason => `<li>${escapeHtml(reason.message)}${reason.evidence ? `<span class="secondary-line">${escapeHtml(formatPriorityText(reason.evidence))}</span>` : ""}</li>`).join("")}</ul>
       <p>Review these points alongside the shown patch priority.</p>
     </section>` : ""}
-    <h3>Risk assessment</h3>
+    <h3>1 &middot; What is affected</h3>
+    ${(() => {
+      const u = updateSummary(record, state.selectedProducts);
+      const rows = u.rows.slice().sort((a, b) => Number(a.available) - Number(b.available));
+      return `<p class="update-summary${u.available === u.total ? " all-fixed" : ""}">
+          <strong>${u.available} of ${u.total}</strong> affected products have an update available.
+          ${u.missing ? `<span class="pending-note">Pending: ${escapeHtml(u.missingNames.join(", "))}</span>` : ""}
+        </p>
+        <div class="table-scroll"><table class="affected-table">
+          <thead><tr><th>Product</th><th>Update</th><th>Reference</th></tr></thead>
+          <tbody>${rows.map(row => `<tr class="${row.available ? "" : "row-pending"}">
+            <td>${escapeHtml(row.name)}</td>
+            <td>${row.available ? `<span class="yes">Available</span>` : `<span class="no">Not yet released</span>`}</td>
+            <td>${row.url ? `<a href="${escapeHtml(row.url)}" target="_blank" rel="noreferrer">${escapeHtml(row.kb || "Release notes")}</a>` : escapeHtml(row.kb || "\u2014")}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>`;
+    })()}
+
+    <h3>2 &middot; Mitigations</h3>
+    ${relevant.length
+      ? `<div class="table-scroll"><table class="affected-table">
+           <thead><tr><th>Control</th><th>Credit</th><th>Basis</th></tr></thead>
+           <tbody>${relevant.map(item => `<tr>
+             <td>${escapeHtml(catalogName(item.id))}</td>
+             <td>${item.confidence === "low" ? "none" : `L${item.effect?.likelihood_steps || 0}/C${item.effect?.consequence_steps || 0}${item.effect?.path_block ? " &middot; blocks path" : ""}`}</td>
+             <td class="basis-cell">${escapeHtml(item.evidence || "no evidence recorded")}</td>
+           </tr>`).join("")}</tbody>
+         </table></div>`
+      : `<p class="detail-meta">None. Patching is the only remediation the vendor documents.</p>`}
+
+    <h3>3 &middot; Priority</h3>
     <dl class="risk-breakdown">
-      <dt>Threat likelihood</dt><dd>${escapeHtml(profile.baseline.likelihood)}</dd>
-      <dt>Baseline model</dt><dd>${escapeHtml(profile.baseline.model || "deterministic fallback")}</dd>
-      <dt>Microsoft</dt><dd>${formatMicrosoftAssessment(record.threat.exploitation_assessment)}</dd>
-      <dt>CVSS</dt><dd>${record.cvss.base_score ?? "Not published"}${record.cvss.temporal_score !== null && record.cvss.temporal_score !== undefined ? ` · temporal ${record.cvss.temporal_score}` : ""}</dd>
-      <dt>Exploit path</dt><dd>${escapeHtml(record.attack.vector)} · privileges ${escapeHtml(record.attack.privileges_required)} · interaction ${escapeHtml(record.attack.user_interaction)}</dd>
-      <dt>Baseline priority</dt><dd><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span></dd>
-      <dt>With controls</dt><dd><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span></dd>
+      <dt>Baseline</dt><dd><span class="decision ${decisionClass(profile.baseline.action)}">${escapeHtml(formatPriority(profile.baseline.action))}</span> &middot; ${escapeHtml(profile.baseline.likelihood)}</dd>
+      <dt>With your controls</dt><dd><span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span> &middot; ${escapeHtml(profile.residual.likelihood)}</dd>
+      <dt>Exploit path</dt><dd>${escapeHtml(record.attack.vector)} &middot; privileges ${escapeHtml(record.attack.privileges_required)} &middot; interaction ${escapeHtml(record.attack.user_interaction)}</dd>
+      <dt>Evidence</dt><dd>Microsoft: ${formatMicrosoftAssessment(record.threat.exploitation_assessment)} &middot; CVSS ${record.cvss.base_score ?? "not published"} &middot; EPSS ${epssDisplay(record.threat)}${record.threat.kev ? " &middot; CISA KEV" : ""}</dd>
     </dl>
-    <p class="risk-interpretation">${escapeHtml(formatPriorityText(riskInterpretation(record, profile)))}</p>
-    <ul class="reason-list">${profile.reasons.map(reason => `<li>${escapeHtml(formatPriorityText(reason))}</li>`).join("")}</ul>
-    ${framework ? `<div class="framework-review">
-      <h3>Framework review</h3>
-      <p><strong>Why this priority:</strong> ${escapeHtml(formatPriorityText(framework.risk_communication.why_this_action))}</p>
-      <p><strong>Control limitations:</strong> ${escapeHtml(formatPriorityText(framework.risk_communication.control_limitations))}</p>
-      <p><strong>Reassess when:</strong> ${framework.risk_communication.reassessment_triggers.map(item => escapeHtml(formatPriorityText(item))).join("; ")}</p>
-      <p class="detail-meta">Model ${escapeHtml(framework.risk_model_version)} · ${escapeHtml(framework.confidence)} confidence</p>
-    </div>` : ""}
-    <h3>Relevant mitigation inference</h3>
-    ${relevant.length ? relevant.map(item => `<div class="mitigation-row"><div class="mitigation-name">${escapeHtml(catalogName(item.id))}</div><div class="confidence">${item.confidence === "low" ? "No assessment credit · low confidence" : `${escapeHtml(item.confidence)} confidence · ${item.effect?.likelihood_steps || 0} likelihood step credit · ${item.effect?.consequence_steps || 0} consequence step credit`}</div><div>${escapeHtml(item.evidence || "No evidence fragment recorded")}</div></div>`).join("") : `<p class="detail-meta">No mitigations were inferred as relevant.</p>`}
+    ${framework ? `<details class="framework-review">
+      <summary>Assessment detail &middot; ${escapeHtml(framework.confidence)} confidence &middot; model ${escapeHtml(framework.risk_model_version)}</summary>
+      <p>${escapeHtml(formatPriorityText(framework.risk_communication.why_this_action))}</p>
+      ${framework.risk_communication.control_limitations ? `<p><strong>Limits:</strong> ${escapeHtml(formatPriorityText(framework.risk_communication.control_limitations))}</p>` : ""}
+      ${framework.risk_communication.reassessment_triggers?.length ? `<p><strong>Reassess if:</strong> ${framework.risk_communication.reassessment_triggers.map(i => escapeHtml(formatPriorityText(i))).join("; ")}</p>` : ""}
+      <ul class="reason-list">${profile.reasons.map(r => `<li>${escapeHtml(formatPriorityText(r))}</li>`).join("")}</ul>
+    </details>` : ""}
     <h3>Inference record</h3>
     <p class="detail-meta">${escapeHtml(record.inference.model || "unknown model")} · ${record.inference.review_status === "reviewed" ? "model assessed" : "not assessed"}${record.inference.verification ? " · additional Codex review" : ""}</p>
     ${record.source.url ? `<h3>Source</h3><a class="source-link" href="${escapeHtml(record.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(record.source.url)}</a>` : ""}`;
