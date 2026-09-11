@@ -114,7 +114,13 @@ def build_schema(cves: list[str], tags: set[str], controls: set[str]) -> dict:
     overlay = obj({
         "cve": enum(cves),
         "attack_path": attack_path,
-        "tags": {"type": "array", "items": enum(sorted(tags))},
+        # Rule 5 requires an evidence fragment for every judgement tag. Until
+        # 2026-09-11 the schema gave it nowhere to go: tags was a bare enum array,
+        # so the instruction was unsatisfiable and no citation could be checked.
+        "tags": {"type": "array", "items": obj({
+            "tag": enum(sorted(tags)),
+            "evidence": string,
+        })},
         "mitigation_candidates": {"type": "array", "items": candidate},
         "framework_assessment": assessment,
     })
