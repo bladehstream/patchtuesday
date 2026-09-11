@@ -35,6 +35,28 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import merge_inference as validation  # noqa: E402
 
+# An assessor must have NO tools and NO MCP servers. It reads advisory text and
+# returns a judgement; it has no business touching the filesystem or any connected
+# service.
+#
+# Learned the hard way, 2026-09-10: the first runs of this adapter passed no tool
+# restrictions at all, so every assessor invocation was a full agent with the
+# session's MCP servers attached. Assessors wrote five documents into the user's
+# claude.ai project as a side effect of being asked to assess advisories. The Luna
+# adapter got this right with --sandbox read-only --ephemeral; this one did not.
+#
+# Belt and braces on purpose: an empty MCP config with --strict-mcp-config removes
+# the servers, --allowedTools names nothing real, and --disallowedTools denies the
+# built-ins by name. Verified by canary: the assessor cannot write a file when
+# explicitly instructed to.
+SANDBOX_ARGS = [
+    "--strict-mcp-config",
+    "--allowedTools", "__none__",
+    "--disallowedTools",
+    "Bash,Read,Write,Edit,MultiEdit,Glob,Grep,WebFetch,WebSearch,Task,"
+    "NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput",
+]
+
 MINIMAL_SYSTEM_PROMPT = (
     "You assess public vulnerability advisories. Return your assessment."
 )
@@ -168,9 +190,14 @@ def main() -> None:
         system_prompt_path = args.run_dir / "system-prompt.txt"
         if not system_prompt_path.exists():
             system_prompt_path.write_text(system_prompt, encoding="utf-8")
+        mcp_config_path = args.run_dir / "empty-mcp.json"
+        if not mcp_config_path.exists():
+            mcp_config_path.write_text('{"mcpServers":{}}', encoding="utf-8")
         command = [
             args.cli, "-p", "--model", args.model, "--output-format", "json",
             "--system-prompt-file", str(system_prompt_path),
+            "--mcp-config", str(mcp_config_path),
+            *SANDBOX_ARGS,
         ]
         if scaffolded:
             # Schema enforcement is part of the scaffolding under test, so the
