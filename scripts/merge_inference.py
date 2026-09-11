@@ -49,6 +49,58 @@ def direction_rules(path: Path) -> dict[str, list[str]]:
     }
 
 
+def enforce_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> list[dict]:
+    """Zero credit that contradicts the asserted attack direction, and flag it.
+
+    Granularity decision, 2026-09-10: rejecting an entire assessment over one bad
+    control credit is the wrong response. The assessment's other work - direction,
+    impact, factors, the remaining controls - may be sound, and discarding it buys
+    nothing. The conservative action is to remove the unsupported discount and
+    surface the contradiction for review, leaving the record with LESS credit than
+    the model claimed rather than none at all.
+
+    A missing or invalid direction is different and still raises: without a
+    direction there is nothing to check any control against, so the assessment
+    cannot be validated at all.
+
+    Returns the list of violations, each already zeroed in place.
+    """
+    path_info = overlay.get("attack_path") or {}
+    direction = path_info.get("direction")
+    if direction not in ATTACK_DIRECTIONS:
+        raise ValueError(f"{cve}: attack_path.direction must be one of {ATTACK_DIRECTIONS}, got {direction!r}")
+
+    violations = []
+    for candidate in overlay.get("mitigation_candidates") or []:
+        effect = candidate.get("effect") or {}
+        credited = (effect.get("likelihood_steps") or 0) > 0 or effect.get("path_block")
+        if not credited:
+            continue
+        allowed = rules.get(candidate.get("id"), list(ATTACK_DIRECTIONS))
+        if direction in allowed:
+            continue
+        violations.append({
+            "code": "direction-contradiction",
+            "control": candidate.get("id"),
+            "direction": direction,
+            "applies_to_direction": allowed,
+            "claimed": {
+                "likelihood_steps": effect.get("likelihood_steps"),
+                "path_block": effect.get("path_block"),
+            },
+            "evidence": candidate.get("evidence", ""),
+            "message": (
+                f"{candidate.get('id')} was credited against an {direction} attack path "
+                f"but only acts on {allowed}. Credit removed; assessment retained."
+            ),
+        })
+        effect["likelihood_steps"] = 0
+        effect["path_block"] = False
+        candidate["relevance"] = "not-relevant"
+        candidate["direction_override"] = True
+    return violations
+
+
 def check_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> None:
     """Reject likelihood credit for a control that cannot act in this direction.
 
