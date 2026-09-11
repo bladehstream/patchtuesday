@@ -77,6 +77,20 @@ SCHEMA = {
 }
 
 
+DEFINITIONS: dict[str, str] = {}
+
+
+def load_definitions(taxonomy: Path) -> None:
+    """Judge against this project's meaning, not the reader's prior.
+
+    Without this the scorer applied the web-application sense of `user-content`
+    and rejected 30.9% of delivery tags that were correct for this system.
+    """
+    global DEFINITIONS
+    data = json.loads(taxonomy.read_text(encoding="utf-8"))
+    DEFINITIONS = {k: v for k, v in (data.get("definitions") or {}).items() if not k.startswith("_")}
+
+
 def record_view(record: dict) -> dict:
     """Exactly what the scorer may rely on. No inference, no ratings, no tags."""
     return {
@@ -94,8 +108,10 @@ def record_view(record: dict) -> dict:
 def score_one(cli: str, model: str, record: dict, tag: str, evidence: str,
               run_dir: Path, index: int, timeout: int) -> dict:
     view = record_view(record)
+    definition = DEFINITIONS.get(tag)
     prompt = (
-        "SUPPLIED RECORD:\n" + json.dumps(view, indent=1)
+        (f"TAG DEFINITION (authoritative for this project): {definition}\n\n" if definition else "")
+        + "SUPPLIED RECORD:\n" + json.dumps(view, indent=1)
         + f"\n\nASSERTED TAG: {tag}"
         + f"\nCITED EVIDENCE: {evidence or '(none supplied)'}"
         + "\n\nAdjudicate the tag against the supplied record alone."
@@ -160,6 +176,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
 
+    load_definitions(args.taxonomy)
     ns = tv.load_namespaces(args.taxonomy)
     judgement = ns["workload"] | ns["delivery"] | ns["impact"]
     records = {json.loads(l)["cve"]: json.loads(l)
