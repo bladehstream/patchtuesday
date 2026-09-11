@@ -211,3 +211,26 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* Product selector: two labelled groups, so the list tells the truth about where
+   each option comes from. Products are derived from the vendor's structured
+   product tree; workloads are assessor judgement with incomplete coverage. */
+.filter-group + .filter-group { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border, #e1e1e1); }
+.filter-group-label {
+  margin: 0 0 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #616161; display: flex; align-items: center; gap: 6px;
+}
+.filter-group-hint {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%; background: #e8e8e8; color: #555;
+  font-size: 0.62rem; font-weight: 700; cursor: help; text-transform: none; letter-spacing: 0;
+}
+.option-count { margin-left: auto; color: #757575; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.choice-list label { display: flex; align-items: center; gap: 6px; }
+/* An option matching nothing this month reads as empty rather than as an error. */
+.empty-option { opacity: 0.45; }
+.match-mode {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 10px;
+  background: #f4f4f4; border-radius: 4px; font-size: 0.78rem; color: #424242;
+}
+.match-mode strong { font-weight: 700; }

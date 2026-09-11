@@ -1,6 +1,6 @@
 import { ACTIONS, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, publicProfile, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.priorities";
 
-const state = { records: [], recordByCve: new Map(), catalog: [], selectedProducts: new Set(), selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
+const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
 const $ = id => document.getElementById(id);
 
 async function loadCatalog() {
@@ -76,20 +76,62 @@ function updateMitigationSummary() {
   }
 }
 
-function productTags() {
-  // Derived from the structured product list, never from advisory prose, and kept
-  // out of the risk path entirely. A wrong product tag is cosmetic; a wrong
-  // judgement tag is not, which is why the two are separate fields.
-  const excluded = new Set(["microsoft"]);
-  return [...new Set(state.records.flatMap(record => record.product_tags || []).filter(tag => !excluded.has(tag)))].sort();
+async function loadProductFilters() {
+  // The selector is a curated list, not whatever tags happen to appear in the
+  // data. An auto-populated list grew to 26 checkboxes and buried the handful an
+  // administrator actually uses. Adding a taxonomy tag no longer adds a checkbox.
+  const response = await fetch("./data/product-filters.json");
+  if (!response.ok) throw new Error("Could not load the product filter list.");
+  state.productFilters = await response.json();
+  state.productMatchMode = state.productFilters.match_mode_default || "or";
+}
+
+function filterOptionTag(value) {
+  for (const group of state.productFilters?.groups || []) {
+    const option = group.options.find(item => item.tag === value);
+    if (option) return { ...option, source: group.source };
+  }
+  return null;
+}
+
+function recordFilterTags(record, source) {
+  return source === "tags" ? (record.tags || []) : (record.product_tags || []);
 }
 
 function renderProductFilters() {
-  const tags = productTags();
   const container = $("product-filters");
-  container.classList.toggle("muted-copy", tags.length === 0);
-  container.innerHTML = tags.length ? tags.map(tag => `
-    <label><input type="checkbox" value="${escapeHtml(tag)}" /><span>${escapeHtml(tag)}</span></label>`).join("") : "No product tags in this dataset.";
+  const groups = state.productFilters?.groups || [];
+  if (!groups.length) {
+    container.classList.add("muted-copy");
+    container.textContent = "Product filter list unavailable.";
+    return;
+  }
+  container.classList.remove("muted-copy");
+
+  // Counts come from the loaded month, so an option that matches nothing this
+  // month is visibly empty rather than silently misleading.
+  const counts = new Map();
+  for (const group of groups) {
+    for (const option of group.options) {
+      counts.set(option.tag, state.records.filter(record =>
+        recordFilterTags(record, group.source).includes(option.tag)).length);
+    }
+  }
+
+  container.innerHTML = groups.map(group => `
+    <div class="filter-group">
+      <p class="filter-group-label">${escapeHtml(group.label)}<span class="filter-group-hint" title="${escapeHtml(group.hint || "")}">?</span></p>
+      <div class="choice-list">
+        ${group.options.map(option => {
+          const count = counts.get(option.tag) || 0;
+          return `<label${count ? "" : ' class="empty-option"'}>
+            <input type="checkbox" value="${escapeHtml(option.tag)}"${state.selectedProducts.has(option.tag) ? " checked" : ""} />
+            <span>${escapeHtml(option.label)}</span><span class="option-count">${count}</span>
+          </label>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+
   updateProductSummary();
   container.onchange = () => {
     state.selectedProducts = checkedValues("product-filters");
@@ -98,16 +140,45 @@ function renderProductFilters() {
   };
 }
 
+function renderMatchModeToggle() {
+  const toggle = $("product-match-mode");
+  if (!toggle) return;
+  toggle.checked = state.productMatchMode === "and";
+  toggle.onchange = () => {
+    state.productMatchMode = toggle.checked ? "and" : "or";
+    updateProductSummary();
+    render();
+  };
+}
+
+function matchesProductFilters(record) {
+  // Nothing selected means nothing is excluded, so records outside the curated
+  // list stay visible by default and are only hidden once a filter is applied.
+  if (!state.selectedProducts.size) return true;
+  const selected = [...state.selectedProducts];
+  const hit = tag => {
+    const option = filterOptionTag(tag);
+    return option ? recordFilterTags(record, option.source).includes(tag) : false;
+  };
+  return state.productMatchMode === "and" ? selected.every(hit) : selected.some(hit);
+}
+
 function updateProductSummary() {
   const summary = $("product-summary");
   if (!summary) return;
   const selected = [...state.selectedProducts];
   if (!selected.length) {
     summary.textContent = "All products and workloads";
-  } else if (selected.length === 1) {
-    summary.textContent = selected[0];
+    return;
+  }
+  const labels = selected.map(tag => filterOptionTag(tag)?.label || tag);
+  if (labels.length === 1) {
+    summary.textContent = labels[0];
   } else {
-    summary.textContent = `${selected.length} products and workloads selected`;
+    const joiner = state.productMatchMode === "and" ? " AND " : " OR ";
+    summary.textContent = labels.length <= 3
+      ? labels.join(joiner)
+      : `${labels.length} selected (${state.productMatchMode.toUpperCase()})`;
   }
 }
 
@@ -118,7 +189,7 @@ function filteredRecords() {
     if (!matchesSmartSearch(record, state.searchQuery, state.selectedMitigations)) return false;
     if (!severity.has(record.severity)) return false;
     if (!vectors.has(record.attack.vector)) return false;
-    if (state.selectedProducts.size && !(record.product_tags || []).some(tag => state.selectedProducts.has(tag))) return false;
+    if (!matchesProductFilters(record)) return false;
     if ($("filter-exploited").checked && !(record.threat.kev || record.threat.exploitation_detected)) return false;
     if ($("filter-likely").checked && record.threat.exploitation_assessment !== "more-likely") return false;
     if ($("filter-review").checked && !record.review.required) return false;
@@ -327,5 +398,8 @@ document.addEventListener("keydown", event => {
   }
 });
 
+loadProductFilters()
+  .then(() => { renderMatchModeToggle(); renderProductFilters(); })
+  .catch(error => { $("status").textContent = error.message; });
 loadCatalog().catch(error => { $("status").textContent = error.message; });
 loadPublishedMonths().catch(() => {});

@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "note": "Curated filter list for the product selector. Deliberately NOT derived from whatever tags appear in the data: an auto-populated selector grew to 26 checkboxes and buried the ones administrators actually use. Adding a tag to the taxonomy no longer adds a checkbox; it must be listed here.",
+  "match_mode_default": "or",
+  "groups": [
+    {
+      "id": "products",
+      "label": "Products",
+      "hint": "Derived from the vendor's structured product list. Complete and deterministic.",
+      "source": "product_tags",
+      "options": [
+        { "tag": "microsoft", "label": "Microsoft" },
+        { "tag": "windows-11", "label": "Windows 11" },
+        { "tag": "windows-10", "label": "Windows 10" },
+        { "tag": "server-2025", "label": "Server 2025" },
+        { "tag": "server-2022", "label": "Server 2022" },
+        { "tag": "server-2019", "label": "Server 2019" },
+        { "tag": "server-2016", "label": "Server 2016" },
+        { "tag": "server-2012", "label": "Server 2012" },
+        { "tag": "exchange", "label": "Exchange" },
+        { "tag": "edge", "label": "Edge" },
+        { "tag": "sql-server", "label": "SQL Server" },
+        { "tag": "sharepoint", "label": "SharePoint" },
+        { "tag": "office", "label": "Office" }
+      ]
+    },
+    {
+      "id": "workloads",
+      "label": "Workloads",
+      "hint": "Roles inferred by the assessor from advisory text. The vendor publishes the affected OS, not the role, so these cannot be derived and coverage is incomplete.",
+      "source": "tags",
+      "options": [
+        { "tag": "identity", "label": "Active Directory" },
+        { "tag": "dns", "label": "DNS" },
+        { "tag": "dhcp", "label": "DHCP" },
+        { "tag": "hyper-v", "label": "Hyper-V" },
+        { "tag": "remote-desktop", "label": "Remote Desktop" },
+        { "tag": "web-server", "label": "IIS" }
+      ]
+    }
+  ],
+  "excluded": {
+    "azure": "Azure vulnerabilities appear in the monthly cycle but are remediated by Microsoft directly, so there is no customer patching decision to support. Decision 2026-09-11."
+  }
+}

@@ -43,7 +43,11 @@
           <details id="product-select" class="multi-select">
             <summary id="product-summary">All products and workloads</summary>
             <div class="multi-select-menu">
-              <div id="product-filters" class="choice-list muted-copy">Load a month to populate product tags.</div>
+              <label class="match-mode">
+                <input id="product-match-mode" type="checkbox" />
+                <span>Match <strong>all</strong> selected instead of any</span>
+              </label>
+              <div id="product-filters" class="muted-copy">Load a month to populate product filters.</div>
             </div>
           </details>
         </fieldset>
