@@ -90,5 +90,23 @@
       "delivery",
       "impact"
     ]
+  },
+  "definitions": {
+    "_note": "Judgement tags gate mitigation credit and risk archetypes, so what they mean cannot be left to the reader. Added 2026-09-11 after an adversarial review rejected 30.9% of delivery tags - almost entirely because the scorer read 'user-content' in the web-application sense (content authored by users) while the assessor used the patch-triage sense (attacker content a user must open). Both readings were defensible from the name. Neither was written down.",
+    "user-content": "Attacker-supplied content that reaches a user and must be opened, previewed or rendered by them - a malicious document, attachment or media file. It does NOT mean content authored by users. This is the sense that email/web filtering and Protected View act on.",
+    "email": "The attacker-supplied content plausibly arrives by mail flow, per the vendor's own description or FAQ.",
+    "web": "The attacker-supplied content plausibly arrives by web browsing or download, per the vendor's description or FAQ.",
+    "remote-service": "The vulnerable code is reached over the network by a service listening for connections, with no user action.",
+    "local-access": "Exploitation requires the attacker to already have local access to the host.",
+    "identity": "Windows identity infrastructure: Active Directory, domain controllers, Kerberos, Netlogon, Entra ID.",
+    "web-server": "IIS or another HTTP server role on the affected host.",
+    "file-services": "SMB, NFS or other file-sharing server roles.",
+    "remote-desktop": "Remote Desktop Services, RDP or Remote Desktop Gateway.",
+    "remote-code-execution": "Arbitrary code execution as the IMPACT CLASS, following the vendor's own title convention. It does not assert network reachability: reachability is carried by the CVSS attack vector, which the risk model reads separately. A record titled 'Remote Code Execution Vulnerability' with AV:L is correctly tagged remote-code-execution; duplicating reachability here would make the tag disagree with the vector field.",
+    "elevation-of-privilege": "The impact is gaining privileges the attacker did not hold. Reachability and prerequisites are carried by the CVSS vector, not by this tag.",
+    "information-disclosure": "The impact is disclosure of data the attacker should not be able to read.",
+    "denial-of-service": "The impact is loss of availability of the affected component or host.",
+    "security-feature-bypass": "The impact is circumventing a security control the vendor names, without directly gaining code execution or privileges.",
+    "spoofing": "The impact is impersonation of a user, host or origin, or misrepresentation of content provenance."
   }
 }
