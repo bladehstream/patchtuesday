@@ -293,30 +293,26 @@ function renderDetail() {
     ${(() => {
       const u = updateSummary(record, state.selectedProducts);
       const rows = u.rows.slice().sort((a, b) => Number(a.available) - Number(b.available));
-      return `<p class="update-summary${u.available === u.total ? " all-fixed" : ""}">
-          <strong>${u.available} of ${u.total}</strong> affected products have an update available.
-          ${u.missing ? `<span class="pending-note">Pending: ${escapeHtml(u.missingNames.join(", "))}</span>` : ""}
+      return `<p class="update-summary">
+          <strong>${u.available} of ${u.total}</strong> affected products have an update.
         </p>
-        <div class="table-scroll"><table class="affected-table">
-          <thead><tr><th>Product</th><th>Update</th><th>Reference</th></tr></thead>
-          <tbody>${rows.map(row => `<tr class="${row.available ? "" : "row-pending"}">
-            <td>${escapeHtml(row.name)}</td>
-            <td>${row.available ? `<span class="yes">Available</span>` : `<span class="no">Not yet released</span>`}</td>
-            <td>${row.url ? `<a href="${escapeHtml(row.url)}" target="_blank" rel="noreferrer">${escapeHtml(row.kb || "Release notes")}</a>` : escapeHtml(row.kb || "\u2014")}</td>
-          </tr>`).join("")}</tbody>
-        </table></div>`;
+        <ul class="product-list">${rows.map(row => `<li class="${row.available ? "is-available" : "is-pending"}">
+            <span class="product-name">${escapeHtml(row.name)}</span>
+            <span class="product-status">${row.available
+              ? `Update available${row.url ? ` &middot; <a href="${escapeHtml(row.url)}" target="_blank" rel="noreferrer">${escapeHtml(row.kb && /^\d+$/.test(row.kb) ? "KB" + row.kb : row.kb || "release notes")}</a>` : row.kb ? ` &middot; ${escapeHtml(row.kb)}` : ""}`
+              : "Not yet released"}</span>
+          </li>`).join("")}</ul>`;
     })()}
 
     <h3>2 &middot; Mitigations</h3>
     ${relevant.length
-      ? `<div class="table-scroll"><table class="affected-table">
-           <thead><tr><th>Control</th><th>Credit</th><th>Basis</th></tr></thead>
-           <tbody>${relevant.map(item => `<tr>
-             <td>${escapeHtml(catalogName(item.id))}</td>
-             <td>${item.confidence === "low" ? "none" : `L${item.effect?.likelihood_steps || 0}/C${item.effect?.consequence_steps || 0}${item.effect?.path_block ? " &middot; blocks path" : ""}`}</td>
-             <td class="basis-cell">${escapeHtml(item.evidence || "no evidence recorded")}</td>
-           </tr>`).join("")}</tbody>
-         </table></div>`
+      ? `<ul class="product-list mitigation-list">${relevant.map(item => `<li>
+           <span class="product-name">${escapeHtml(catalogName(item.id))}</span>
+           <span class="product-status">${item.confidence === "low"
+             ? "no credit &middot; low confidence"
+             : `likelihood &minus;${item.effect?.likelihood_steps || 0}, consequence &minus;${item.effect?.consequence_steps || 0}${item.effect?.path_block ? " &middot; blocks the path" : ""}`}</span>
+           <span class="product-basis">${escapeHtml(item.evidence || "no evidence recorded")}</span>
+         </li>`).join("")}</ul>`
       : `<p class="detail-meta">None. Patching is the only remediation the vendor documents.</p>`}
 
     <h3>3 &middot; Priority</h3>
