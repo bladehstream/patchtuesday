@@ -106,6 +106,20 @@ function fixture(cve, { severity = "Important", assessment = "less-likely", kev 
   assert.equal(tile.state, "emergency", "an unrated KEV record must stay red, not go grey");
 }
 
+// The review count reads the loader's cached reviewStatus when one is attached,
+// because recomputing it per tile per render is the expensive part of the board.
+// The cache must be used, and must agree with a fresh call when it is absent.
+{
+  const record = fixture("CVE-0000-2500", { baselineAction: "Scheduled" });
+  assert.equal(summariseTile([record]).reviewCount, reviewStatus(record).required ? 1 : 0, "with no cache the count matches a fresh reviewStatus");
+
+  const cached = { ...record, review: { required: true, reasons: [{ code: "cached", message: "cached" }] } };
+  assert.equal(summariseTile([cached]).reviewCount, 1, "an attached review is honoured");
+
+  const clearedCache = { ...record, review: { required: false, reasons: [] } };
+  assert.equal(summariseTile([clearedCache]).reviewCount, 0, "the cache is read rather than recomputed");
+}
+
 // An empty tile is a fact, not an absence. It must be representable.
 {
   const tile = summariseTile([]);

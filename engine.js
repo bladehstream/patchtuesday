@@ -505,18 +505,22 @@ export const TILE_STATES = Object.freeze({
 export function summariseTile(records, selectedMitigations = new Set()) {
   const counts = Object.fromEntries(ACTIONS.map(action => [action, 0]));
   let worstIndex = -1;
-  for (const record of records) {
-    const action = predictProfile(record, selectedMitigations).residual.action;
+  // One profile per record. Every tile on the board runs this on every render,
+  // and predictProfile walks the mitigation candidates each time it is called.
+  const actions = records.map(record => predictProfile(record, selectedMitigations).residual.action);
+  for (const action of actions) {
     counts[action] += 1;
     worstIndex = Math.max(worstIndex, ACTIONS.indexOf(action));
   }
   const worstAction = worstIndex < 0 ? null : ACTIONS[worstIndex];
-  const atWorst = worstAction === null ? [] : records.filter(record =>
-    predictProfile(record, selectedMitigations).residual.action === worstAction);
-  const unverified = atWorst.length > 0
+  const unverified = worstAction !== null
     && UNDERSTATING_ACTIONS.has(worstAction)
-    && atWorst.every(record => record.severity === "Unknown");
-  const reviewCount = records.filter(record => reviewStatus(record).required).length;
+    && records.every((record, index) => actions[index] !== worstAction || record.severity === "Unknown");
+  // reviewStatus is the most expensive thing here - it rebuilds the per-product
+  // update tables from the vendor remediation list. The loaders already compute
+  // it once per record, so use that result when it is present.
+  const reviewCount = records.filter(record =>
+    (record.review ? record.review.required : reviewStatus(record).required)).length;
   return {
     total: records.length,
     counts,

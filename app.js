@@ -302,8 +302,15 @@ function renderOverview() {
   list.onclick = event => {
     const item = event.target.closest("button[data-cve]");
     if (!item || !list.contains(item)) return;
+    // The list is month-wide, so the record picked here need not survive the
+    // advisory list's own filters. Clear them rather than open a detail pane for
+    // a row the table does not contain and the next render would drop.
     state.selectedCve = item.dataset.cve;
+    state.selectedProducts.clear();
+    for (const input of document.querySelectorAll("#product-filters input")) input.checked = false;
+    updateProductSummary();
     setView("advisories");
+    render();
     renderDetail();
   };
 }
@@ -333,12 +340,16 @@ function setView(view, { updateHash = true } = {}) {
   // Search applies to the advisory list only. Leaving it visible on a board it
   // deliberately does not filter would read as a broken control.
   $("smart-search-form").hidden = state.view !== "advisories";
+  if (state.view === "overview") renderOverview();
   if (updateHash) {
     const suffix = state.view === "advisories" && state.selectedProducts.size === 1
       ? `?product=${encodeURIComponent([...state.selectedProducts][0])}`
       : "";
     const next = `#${state.view}${suffix}`;
-    if (location.hash !== next) history.replaceState(null, "", next);
+    // pushState, not replaceState: Back has to move between the views rather
+    // than leave the site. The guard above keeps a repeated setView for the same
+    // view from stacking duplicate entries.
+    if (location.hash !== next) history.pushState(null, "", next);
   }
 }
 
@@ -358,7 +369,10 @@ function applyHash() {
 }
 
 function render() {
-  renderOverview();
+  // The board is whole-month work across every tile. Building it while the
+  // advisory list is on screen put that cost on every search keystroke, so it is
+  // built when the overview is visible and refreshed by setView on the way in.
+  if (state.view === "overview") renderOverview();
   const records = filteredRecords();
   const body = $("results-body");
   if (!records.some(record => record.cve === state.selectedCve)) state.selectedCve = records[0]?.cve || null;
@@ -501,6 +515,9 @@ async function loadText(text) {
     renderProductFilters();
     const month = state.records[0]?.month || "unknown";
     $("dataset-meta").textContent = `${month} · ${state.records.length} records`;
+    // loadText clears selectedProducts, so a stale ?product= in the hash would be
+    // re-applied on the next refresh after the filter had already been dropped.
+    setView(state.view);
     render();
   } catch (error) {
     $("status").textContent = error.message;
