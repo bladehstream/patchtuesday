@@ -200,15 +200,60 @@ function fixture(cve, { severity = "Important", assessment = "less-likely", kev 
 // ---------------------------------------------------------------------------
 // Worst-first list
 // ---------------------------------------------------------------------------
+const emergencies = count => Array.from({ length: count }, (_, i) =>
+  fixture(`CVE-0000-7${String(i).padStart(3, "0")}`, { baselineAction: "Immediate", baselineModel: "active-exploitation", kev: true }));
+const expedited = count => Array.from({ length: count }, (_, i) =>
+  fixture(`CVE-0000-8${String(i).padStart(3, "0")}`, { baselineAction: "Out-of-cycle", baselineModel: "critical-technical", severity: "Critical" }));
+
 {
   const records = [
     fixture("CVE-0000-6001", { baselineAction: "Scheduled" }),
-    fixture("CVE-0000-6002", { baselineAction: "Out-of-cycle", baselineModel: "critical-technical", severity: "Critical" }),
-    fixture("CVE-0000-6003", { baselineAction: "Immediate", baselineModel: "active-exploitation", kev: true }),
+    ...expedited(1),
+    ...emergencies(1),
   ];
   const worst = worstFirst(records);
-  assert.deepEqual(worst.map(item => item.record.cve), ["CVE-0000-6003", "CVE-0000-6002"], "Scheduled records are excluded and Immediate sorts first");
-  assert.equal(worstFirst(records, new Set(), 1).length, 1, "the limit is honoured");
+  assert.deepEqual(worst.map(item => item.record.cve), ["CVE-0000-7000", "CVE-0000-8000"], "Scheduled records are excluded and Immediate sorts first");
+}
+
+// Below the minimum, Expedited tops the list up to it.
+{
+  const worst = worstFirst([...emergencies(5), ...expedited(40)]);
+  assert.equal(worst.length, 10, "five emergencies are topped up to the minimum of ten");
+  assert.equal(worst.filter(item => item.profile.residual.action === "Immediate").length, 5);
+  assert.equal(worst.filter(item => item.profile.residual.action === "Out-of-cycle").length, 5, "only enough Expedited to reach the minimum");
+}
+
+// No emergencies at all still fills to the minimum.
+{
+  const worst = worstFirst(expedited(40));
+  assert.equal(worst.length, 10, "the top-up alone reaches the minimum");
+  assert.ok(worst.every(item => item.profile.residual.action === "Out-of-cycle"));
+}
+
+// At or above the minimum, every Emergency shows and no Expedited is appended.
+{
+  const worst = worstFirst([...emergencies(11), ...expedited(40)]);
+  assert.equal(worst.length, 11, "every Emergency is shown, never truncated");
+  assert.ok(worst.every(item => item.profile.residual.action === "Immediate"), "Expedited is dropped once Emergency reaches the minimum");
+}
+
+// Exactly at the minimum is the boundary: still Emergency only.
+{
+  const worst = worstFirst([...emergencies(10), ...expedited(40)]);
+  assert.equal(worst.length, 10);
+  assert.ok(worst.every(item => item.profile.residual.action === "Immediate"), "ten emergencies is already the minimum, so nothing is appended");
+}
+
+// Emergency is never truncated even far above the minimum.
+{
+  assert.equal(worstFirst(emergencies(37)).length, 37, "all 37 emergencies are shown");
+}
+
+// Fewer than the minimum exist above Scheduled: show what there is, not padding.
+{
+  const worst = worstFirst([...emergencies(2), ...expedited(3), fixture("CVE-0000-9001", { baselineAction: "Scheduled" })]);
+  assert.equal(worst.length, 5, "a quiet month yields a short list rather than Scheduled filler");
+  assert.ok(worst.every(item => item.profile.residual.action !== "Scheduled"));
 }
 
 // ---------------------------------------------------------------------------

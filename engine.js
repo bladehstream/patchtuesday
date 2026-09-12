@@ -564,11 +564,18 @@ export function monthTotals(records, selectedMitigations = new Set()) {
   return { total: summary.total, counts: summary.counts, reviewCount: summary.reviewCount };
 }
 
-// The handful of advisories that set the tone for the month, worst first, then
-// by exploitation evidence. Ties break on CVE so the order is stable between
-// renders and between readers.
-export function worstFirst(records, selectedMitigations = new Set(), limit = 8) {
-  return records
+// The advisories that set the tone for the month. Every Emergency is shown
+// without exception - truncating that list would be the one omission an
+// administrator cannot afford - and Expedited records top it up to a readable
+// minimum. Once Emergency alone reaches the minimum the Expedited records are
+// dropped rather than appended, because at that point the month's problem is
+// the emergencies and a longer list only buries them.
+//
+// Ordering within each band runs on exploitation evidence, then CVSS, then CVE,
+// so the sequence is stable between renders and identical for two readers
+// looking at the same month.
+export function worstFirst(records, selectedMitigations = new Set(), { minimum = 10, maxTopUp = 10 } = {}) {
+  const ranked = records
     .map(record => ({ record, profile: predictProfile(record, selectedMitigations) }))
     .filter(item => ACTIONS.indexOf(item.profile.residual.action) >= 2)
     .sort((a, b) => {
@@ -579,6 +586,9 @@ export function worstFirst(records, selectedMitigations = new Set(), limit = 8) 
       const byScore = (b.record.cvss?.base_score ?? 0) - (a.record.cvss?.base_score ?? 0);
       if (byScore) return byScore;
       return a.record.cve.localeCompare(b.record.cve);
-    })
-    .slice(0, limit);
+    });
+  const emergency = ranked.filter(item => item.profile.residual.action === "Immediate");
+  if (emergency.length >= minimum) return emergency;
+  const topUp = ranked.filter(item => item.profile.residual.action === "Out-of-cycle");
+  return [...emergency, ...topUp.slice(0, Math.min(maxTopUp, minimum - emergency.length))];
 }

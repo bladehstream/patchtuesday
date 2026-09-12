@@ -289,7 +289,7 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 
 /* --- Overview ------------------------------------------------------------- */
 
-.overview-view { padding: 20px 24px 40px; }
+.overview-view { padding: 22px 24px 44px; }
 
 .overview-head {
   display: flex;
@@ -297,123 +297,205 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
   gap: 16px 32px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
-.overview-head h1 { margin: 0 0 6px; font-size: 1.2rem; }
-.overview-sub { max-width: 70ch; margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+.overview-head h1 { margin: 0 0 6px; font-size: 1.25rem; letter-spacing: -0.01em; }
+.overview-sub { max-width: 68ch; margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
 
 .overview-mitigations {
-  min-width: 260px;
+  min-width: 280px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 10px 13px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 6px;
   background: var(--surface);
 }
 
-.overview-mitigations legend { padding: 0 4px; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.overview-mitigations legend { padding: 0 4px; color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
-.board-group { margin-top: 22px; }
+.board-group { margin-top: 24px; }
 
 .board-group-label {
-  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 11px;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  /* Equal-height rows, so a tile carrying an extra note does not leave its
+     neighbours short. The internal rows below keep the parts aligned too. */
+  grid-auto-rows: 1fr;
+  gap: 11px;
 }
 
-/* The left edge carries the colour and the state line carries the word, so the
-   tile is still readable without colour vision or on a monochrome print. */
+/* Colour is carried by the left edge, the pill and a light wash, never by the
+   pill alone - the state is always spelled out in words inside it. */
 .tile {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 13px 15px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 9px;
+  padding: 13px 14px 12px;
   border: 1px solid var(--line);
-  border-left: 6px solid var(--line-strong);
-  border-radius: var(--radius);
+  border-left: 4px solid var(--line-strong);
+  border-radius: 6px;
   background: var(--surface);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
 }
 
-.tile:hover { border-color: var(--line-strong); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.tile:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); transform: translateY(-1px); }
 .tile:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
 
-.tile-label { font-size: 0.98rem; font-weight: 650; }
-.tile-state { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
-.tile-count { color: var(--muted); font-size: 0.82rem; }
-.tile-note { margin-top: 5px; color: #6d4a00; font-size: 0.78rem; line-height: 1.4; }
-.tile-review { margin-top: 5px; color: #754400; font-size: 0.78rem; font-weight: 600; }
+.tile-head { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+.tile-label { font-size: 0.95rem; font-weight: 650; line-height: 1.25; }
 
-.tile--emergency { border-left-color: var(--critical); background: var(--critical-bg); }
-.tile--emergency .tile-state { color: var(--critical); }
-.tile--expedited { border-left-color: var(--warning); background: var(--warning-bg); }
-.tile--expedited .tile-state { color: var(--warning); }
-.tile--scheduled { border-left-color: var(--scheduled); background: var(--scheduled-bg); }
-.tile--scheduled .tile-state { color: var(--scheduled); }
-.tile--no-action { border-left-color: var(--line-strong); background: var(--neutral-bg); }
-.tile--no-action .tile-state { color: #323130; }
-
-/* Unverified is deliberately not green and deliberately not a plain grey either:
-   an unrated advisory is an open question, and the hatching says so at a glance
-   where a flat colour would read as another settled answer. */
-.tile--unverified {
-  border-left-color: #8a5300;
-  background: repeating-linear-gradient(135deg, #fff4ce, #fff4ce 7px, #f7e6b8 7px, #f7e6b8 14px);
+.tile-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.tile--unverified .tile-state { color: #8a5300; }
+.tile-count { color: var(--muted); font-size: 0.82rem; }
+.tile-count strong { color: var(--ink); font-size: 1.02rem; font-weight: 700; }
+
+.tile-foot { display: flex; flex-direction: column; gap: 3px; align-self: end; font-size: 0.76rem; }
+.tile-note { color: #6d4a00; font-weight: 600; }
+.tile-review { color: #754400; font-weight: 600; }
+
+.tile--emergency { border-left-color: var(--critical); background: #fef7f8; }
+.tile--emergency .tile-pill { color: #fff; background: var(--critical); }
+.tile--expedited { border-left-color: #b3720f; background: #fffbf0; }
+.tile--expedited .tile-pill { color: #fff; background: #b3720f; }
+.tile--scheduled { border-left-color: var(--scheduled); background: #f5fbf4; }
+.tile--scheduled .tile-pill { color: #fff; background: var(--scheduled); }
+.tile--no-action { border-left-color: var(--line-strong); background: var(--surface-alt); }
+.tile--no-action .tile-pill { color: #fff; background: #6b6966; }
+
+/* Unverified is deliberately neither green nor a flat grey: an unrated advisory
+   is an open question, and the hatching reads as one where a solid colour would
+   read as another settled answer. */
+.tile--unverified {
+  border-left-color: #8a5300;
+  background: repeating-linear-gradient(135deg, #fffaee, #fffaee 8px, #fdf1d6 8px, #fdf1d6 16px);
+}
+
+.tile--unverified .tile-pill { color: #fff; background: #8a5300; }
 
 .tile--empty { border-left-color: var(--line); background: var(--surface-alt); cursor: default; }
-.tile--empty .tile-label, .tile--empty .tile-state, .tile--empty .tile-count { color: var(--muted); }
-.tile--empty .tile-state { font-weight: 600; }
+.tile--empty:hover { box-shadow: none; transform: none; }
+.tile--empty .tile-label { color: var(--muted); }
+.tile--empty .tile-pill { color: var(--muted); background: var(--neutral-bg); }
 
 /* --- Worst first ---------------------------------------------------------- */
 
-.worst-first { margin-top: 30px; }
-.worst-first h2 { margin: 0 0 4px; font-size: 1rem; }
-.worst-first-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.worst-first { margin-top: 34px; }
+.worst-first h2 { margin: 0 0 4px; font-size: 1.05rem; letter-spacing: -0.01em; }
+.worst-first .field-help { margin: 0; }
 
-.worst-item {
+.worst-first-list {
   display: grid;
-  grid-template-columns: 140px 150px 1fr;
-  gap: 4px 14px;
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.worst-card {
+  display: grid;
+  /* Rows size to their content and the cards stretch to a common height, so the
+     slack collects at the foot of the shorter ones. Pinning the last row to the
+     bottom instead opened a gap in the middle of every card that had less to
+     say than its tallest neighbour. */
+  align-content: start;
+  gap: 9px;
   width: 100%;
-  padding: 10px 13px;
+  height: 100%;
+  padding: 14px 16px 15px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-left: 4px solid var(--line-strong);
+  border-radius: 6px;
   background: var(--surface);
   color: inherit;
   font: inherit;
   text-align: left;
-  align-items: baseline;
   cursor: pointer;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
-.worst-item:hover { border-color: var(--line-strong); }
-.worst-item:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
-/* Grid children default to min-width:auto, so a long advisory title would widen
-   the row rather than wrap inside it. */
-.worst-item > span { min-width: 0; overflow-wrap: anywhere; }
-.worst-item .worst-cve { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.86rem; }
-.worst-item .worst-title { font-size: 0.9rem; }
-.worst-item .secondary-line { grid-column: 2 / -1; }
+.worst-card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+.worst-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
+.worst-card--immediate { border-left-color: var(--critical); }
+.worst-card--out-of-cycle { border-left-color: #b3720f; }
+
+.worst-head { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.worst-cve { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.85rem; font-weight: 600; }
+
+.worst-flag {
+  padding: 2px 7px;
+  border: 1px solid #b66b00;
+  border-radius: 999px;
+  color: #754400;
+  background: #fff8e7;
+  font-size: 0.71rem;
+  font-weight: 650;
+}
+
+.worst-flag--kev { border-color: var(--critical); color: var(--critical); background: var(--critical-bg); }
+
+.worst-title { font-size: 0.94rem; font-weight: 600; line-height: 1.35; }
+.worst-summary { color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
+
+.worst-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 7px 16px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--line);
+  align-content: start;
+}
+
+.fact { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.fact-term {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.fact-value { font-size: 0.82rem; overflow-wrap: anywhere; }
+
+.worst-why {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
 
 @media (max-width: 760px) {
-  .worst-item { grid-template-columns: 1fr; }
-  .worst-item .secondary-line { grid-column: 1; }
   .overview-view { padding: 16px; }
   .view-tabs { padding: 0 16px; }
+  .worst-first-list, .tile-grid { grid-template-columns: 1fr; }
 }
