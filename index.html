@@ -6,7 +6,7 @@
     <meta name="description" content="Local-first Microsoft Patch Tuesday triage using enriched monthly JSONL data." />
     <title>Patch Tuesday Triage</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=2026.09.priorities" />
+    <link rel="stylesheet" href="./styles.css?v=2026.09.overview" />
   </head>
   <body>
     <header class="app-header">
@@ -31,7 +31,50 @@
       </div>
     </header>
 
-    <main class="workspace">
+    <nav class="view-tabs" role="tablist" aria-label="Views">
+      <button id="tab-overview" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="view-overview">Overview</button>
+      <button id="tab-advisories" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="view-advisories">Advisories</button>
+    </nav>
+
+    <section id="view-overview" class="overview-view" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="overview-head">
+        <div>
+          <h1>Month overview</h1>
+          <p class="overview-sub">Every advisory in the loaded month. A tile takes the colour of the single worst decision within it, however rare that decision is. Verified mitigations below apply here and on the Advisories tab; the search and filters on that tab do not change this view.</p>
+        </div>
+        <fieldset class="overview-mitigations">
+          <legend>Verified mitigations</legend>
+          <details id="ov-mitigation-select" class="multi-select">
+            <summary id="ov-mitigation-summary">No mitigations selected</summary>
+            <div class="multi-select-menu">
+              <p class="field-help">Selections only receive credit where the inference record marks them relevant to the exploit path.</p>
+              <div id="ov-mitigation-filters" class="choice-list muted-copy">Mitigation catalogue is loading.</div>
+            </div>
+          </details>
+        </fieldset>
+      </div>
+
+      <div id="ov-summary-strip" class="summary-strip" aria-live="polite">
+        <div><span id="ov-total-count" class="summary-value">0</span><span>advisories</span></div>
+        <div><span id="ov-immediate-count" class="summary-value">0</span><span>Emergency</span></div>
+        <div><span id="ov-out-cycle-count" class="summary-value">0</span><span>Expedited</span></div>
+        <div><span id="ov-scheduled-count" class="summary-value">0</span><span>Normal scheduled</span></div>
+        <div><span id="ov-no-action-count" class="summary-value">0</span><span>No customer action</span></div>
+        <div><span id="ov-review-count" class="summary-value">0</span><span>Review required</span></div>
+      </div>
+
+      <div id="overview-board" class="board">
+        <p class="muted-copy">Load a month to populate the overview.</p>
+      </div>
+
+      <section class="worst-first" aria-labelledby="worst-first-heading">
+        <h2 id="worst-first-heading">Highest priority this month</h2>
+        <p class="field-help">Every advisory above Normal scheduled, worst first. Selecting one opens it on the Advisories tab.</p>
+        <ol id="worst-first-list" class="worst-first-list"></ol>
+      </section>
+    </section>
+
+    <main id="view-advisories" class="workspace" role="tabpanel" aria-labelledby="tab-advisories" hidden>
       <aside class="filter-panel" aria-label="Assessment filters">
         <div class="panel-heading">
           <h1>Environment profile</h1>
@@ -132,6 +175,6 @@
       </aside>
     </main>
 
-    <script type="module" src="./app.js?v=2026.09.priorities"></script>
+    <script type="module" src="./app.js?v=2026.09.overview"></script>
   </body>
 </html>

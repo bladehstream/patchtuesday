@@ -24,6 +24,10 @@
 
 * { box-sizing: border-box; }
 
+/* The view panels carry their own display values, which outrank the user agent's
+   [hidden] rule. Without this the inactive view stays on screen. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   min-width: 320px;
@@ -258,3 +262,158 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 .update-summary { margin: 4px 0 8px; font-size: 0.85rem; }
 .framework-review summary { cursor: pointer; font-size: 0.78rem; color: #555; padding: 6px 0; }
 .framework-review[open] summary { margin-bottom: 6px; }
+
+/* --- Views ---------------------------------------------------------------- */
+
+.view-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.view-tab {
+  padding: 11px 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab:hover { color: var(--ink); }
+.view-tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* --- Overview ------------------------------------------------------------- */
+
+.overview-view { padding: 20px 24px 40px; }
+
+.overview-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.overview-head h1 { margin: 0 0 6px; font-size: 1.2rem; }
+.overview-sub { max-width: 70ch; margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+
+.overview-mitigations {
+  min-width: 260px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.overview-mitigations legend { padding: 0 4px; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+
+.board-group { margin-top: 22px; }
+
+.board-group-label {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+/* The left edge carries the colour and the state line carries the word, so the
+   tile is still readable without colour vision or on a monochrome print. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tile:hover { border-color: var(--line-strong); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.tile:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
+
+.tile-label { font-size: 0.98rem; font-weight: 650; }
+.tile-state { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+.tile-count { color: var(--muted); font-size: 0.82rem; }
+.tile-note { margin-top: 5px; color: #6d4a00; font-size: 0.78rem; line-height: 1.4; }
+.tile-review { margin-top: 5px; color: #754400; font-size: 0.78rem; font-weight: 600; }
+
+.tile--emergency { border-left-color: var(--critical); background: var(--critical-bg); }
+.tile--emergency .tile-state { color: var(--critical); }
+.tile--expedited { border-left-color: var(--warning); background: var(--warning-bg); }
+.tile--expedited .tile-state { color: var(--warning); }
+.tile--scheduled { border-left-color: var(--scheduled); background: var(--scheduled-bg); }
+.tile--scheduled .tile-state { color: var(--scheduled); }
+.tile--no-action { border-left-color: var(--line-strong); background: var(--neutral-bg); }
+.tile--no-action .tile-state { color: #323130; }
+
+/* Unverified is deliberately not green and deliberately not a plain grey either:
+   an unrated advisory is an open question, and the hatching says so at a glance
+   where a flat colour would read as another settled answer. */
+.tile--unverified {
+  border-left-color: #8a5300;
+  background: repeating-linear-gradient(135deg, #fff4ce, #fff4ce 7px, #f7e6b8 7px, #f7e6b8 14px);
+}
+
+.tile--unverified .tile-state { color: #8a5300; }
+
+.tile--empty { border-left-color: var(--line); background: var(--surface-alt); cursor: default; }
+.tile--empty .tile-label, .tile--empty .tile-state, .tile--empty .tile-count { color: var(--muted); }
+.tile--empty .tile-state { font-weight: 600; }
+
+/* --- Worst first ---------------------------------------------------------- */
+
+.worst-first { margin-top: 30px; }
+.worst-first h2 { margin: 0 0 4px; font-size: 1rem; }
+.worst-first-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+
+.worst-item {
+  display: grid;
+  grid-template-columns: 140px 150px 1fr;
+  gap: 4px 14px;
+  width: 100%;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.worst-item:hover { border-color: var(--line-strong); }
+.worst-item:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
+/* Grid children default to min-width:auto, so a long advisory title would widen
+   the row rather than wrap inside it. */
+.worst-item > span { min-width: 0; overflow-wrap: anywhere; }
+.worst-item .worst-cve { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.86rem; }
+.worst-item .worst-title { font-size: 0.9rem; }
+.worst-item .secondary-line { grid-column: 2 / -1; }
+
+@media (max-width: 760px) {
+  .worst-item { grid-template-columns: 1fr; }
+  .worst-item .secondary-line { grid-column: 1; }
+  .overview-view { padding: 16px; }
+  .view-tabs { padding: 0 16px; }
+}

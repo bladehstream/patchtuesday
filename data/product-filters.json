@@ -11,7 +11,9 @@
       "options": [
         {
           "tag": "microsoft",
-          "label": "Microsoft"
+          "label": "Microsoft",
+          "overview": false,
+          "overview_note": "Kept as a checkbox but excluded from the overview board. It matches every record in the month, so as a tile it restates the month summary immediately above it and does so in whatever colour the single worst advisory dictates."
         },
         {
           "tag": "windows-11",

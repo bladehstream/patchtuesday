@@ -1,6 +1,6 @@
-import { ACTIONS, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, publicProfile, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile } from "./engine.js?v=2026.09.priorities";
+import { ACTIONS, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, monthTotals, overviewBoard, publicProfile, recordFilterTags, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile, worstFirst } from "./engine.js?v=2026.09.overview";
 
-const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "" };
+const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "", view: "overview" };
 const $ = id => document.getElementById(id);
 
 async function loadCatalog() {
@@ -47,32 +47,54 @@ function checkedValues(containerId) {
   return new Set([...$(containerId).querySelectorAll("input:checked")].map(input => input.value));
 }
 
+// The same catalogue is offered on both views. One selection set backs both
+// widgets, so a control verified on the overview is still verified when the
+// administrator moves to the advisory list and vice versa.
+const MITIGATION_WIDGETS = [
+  { list: "mitigation-filters", summary: "mitigation-summary" },
+  { list: "ov-mitigation-filters", summary: "ov-mitigation-summary" },
+];
+
 function renderMitigations() {
-  const container = $("mitigation-filters");
-  container.classList.remove("muted-copy");
-  container.innerHTML = state.catalog.map(item => `
-    <label title="${escapeHtml(item.credit_rule)}">
-      <input type="checkbox" value="${escapeHtml(item.id)}" />
-      <span>${escapeHtml(item.name)}<span class="secondary-line">${escapeHtml(item.category)}</span></span>
-    </label>`).join("");
+  for (const widget of MITIGATION_WIDGETS) {
+    const container = $(widget.list);
+    if (!container) continue;
+    container.classList.remove("muted-copy");
+    container.innerHTML = state.catalog.map(item => `
+      <label title="${escapeHtml(item.credit_rule)}">
+        <input type="checkbox" value="${escapeHtml(item.id)}"${state.selectedMitigations.has(item.id) ? " checked" : ""} />
+        <span>${escapeHtml(item.name)}<span class="secondary-line">${escapeHtml(item.category)}</span></span>
+      </label>`).join("");
+    container.onchange = () => {
+      state.selectedMitigations = checkedValues(widget.list);
+      syncMitigationWidgets();
+      render();
+    };
+  }
   updateMitigationSummary();
-  container.onchange = () => {
-    state.selectedMitigations = checkedValues("mitigation-filters");
-    updateMitigationSummary();
-    render();
-  };
+}
+
+// Push the shared selection back into whichever widget did not originate the
+// change, so the two can never show different answers for the same state.
+function syncMitigationWidgets() {
+  for (const widget of MITIGATION_WIDGETS) {
+    const container = $(widget.list);
+    if (!container) continue;
+    for (const input of container.querySelectorAll("input[type=checkbox]")) {
+      input.checked = state.selectedMitigations.has(input.value);
+    }
+  }
+  updateMitigationSummary();
 }
 
 function updateMitigationSummary() {
-  const summary = $("mitigation-summary");
-  if (!summary) return;
   const selected = [...state.selectedMitigations];
-  if (!selected.length) {
-    summary.textContent = "No mitigations selected";
-  } else if (selected.length === 1) {
-    summary.textContent = catalogName(selected[0]);
-  } else {
-    summary.textContent = `${selected.length} mitigations selected`;
+  const text = !selected.length
+    ? "No mitigations selected"
+    : selected.length === 1 ? catalogName(selected[0]) : `${selected.length} mitigations selected`;
+  for (const widget of MITIGATION_WIDGETS) {
+    const summary = $(widget.summary);
+    if (summary) summary.textContent = text;
   }
 }
 
@@ -92,10 +114,6 @@ function filterOptionTag(value) {
     if (option) return { ...option, source: group.source };
   }
   return null;
-}
-
-function recordFilterTags(record, source) {
-  return source === "tags" ? (record.tags || []) : (record.product_tags || []);
 }
 
 function renderProductFilters() {
@@ -207,7 +225,140 @@ function epssDisplay(threat) {
   return score;
 }
 
+// Colour is never the only carrier of meaning: every tile states its level in
+// words as well, and the empty and unverified states say what they are rather
+// than relying on being a different shade of grey.
+const TILE_STATE_LABELS = Object.freeze({
+  emergency: "Emergency",
+  expedited: "Expedited",
+  scheduled: "Normal scheduled",
+  "no-action": "No customer action",
+  unverified: "Unverified",
+  empty: "None this month",
+});
+
+function tileHtml(tile) {
+  const label = TILE_STATE_LABELS[tile.state] || tile.state;
+  const countLine = tile.total === 0
+    ? "No advisories this month"
+    : `${tile.worstCount} of ${tile.total} advisor${tile.total === 1 ? "y" : "ies"}`;
+  // The unverified note is the whole point of the state. Without it the tile is
+  // just an unexplained grey square where an administrator expected green.
+  const note = tile.unverified
+    ? `<span class="tile-note">No vendor severity published for any advisory at this level. The action shown is a placeholder pending review, not a finding of low risk.</span>`
+    : "";
+  const review = tile.reviewCount
+    ? `<span class="tile-review">${tile.reviewCount} need${tile.reviewCount === 1 ? "s" : ""} review</span>`
+    : "";
+  const aria = `${tile.label}: ${label}, ${countLine}${tile.reviewCount ? `, ${tile.reviewCount} needing review` : ""}`;
+  return `<button class="tile tile--${escapeHtml(tile.state)}" type="button" data-tag="${escapeHtml(tile.tag)}" aria-label="${escapeHtml(aria)}">
+    <span class="tile-label">${escapeHtml(tile.label)}</span>
+    <span class="tile-state">${escapeHtml(label)}</span>
+    <span class="tile-count">${escapeHtml(countLine)}</span>
+    ${note}${review}
+  </button>`;
+}
+
+function renderOverview() {
+  const board = $("overview-board");
+  if (!board) return;
+  if (!state.records.length) {
+    board.innerHTML = `<p class="muted-copy">Load a month to populate the overview.</p>`;
+    $("worst-first-list").innerHTML = "";
+    return;
+  }
+
+  const groups = overviewBoard(state.records, state.productFilters, state.selectedMitigations);
+  board.innerHTML = groups.map(group => `
+    <section class="board-group" aria-label="${escapeHtml(group.label)}">
+      <h2 class="board-group-label">${escapeHtml(group.label)}<span class="filter-group-hint" title="${escapeHtml(group.hint)}">?</span></h2>
+      <div class="tile-grid">${group.tiles.map(tileHtml).join("")}</div>
+    </section>`).join("");
+
+  board.onclick = event => {
+    const tile = event.target.closest("button[data-tag]");
+    if (tile && board.contains(tile)) showProduct(tile.dataset.tag);
+  };
+
+  const totals = monthTotals(state.records, state.selectedMitigations);
+  $("ov-total-count").textContent = totals.total;
+  $("ov-immediate-count").textContent = totals.counts.Immediate;
+  $("ov-out-cycle-count").textContent = totals.counts["Out-of-cycle"];
+  $("ov-scheduled-count").textContent = totals.counts.Scheduled;
+  $("ov-no-action-count").textContent = totals.counts["Defer and review"];
+  $("ov-review-count").textContent = totals.reviewCount;
+
+  const worst = worstFirst(state.records, state.selectedMitigations);
+  const list = $("worst-first-list");
+  list.innerHTML = worst.length
+    ? worst.map(({ record, profile }) => `<li>
+        <button class="worst-item" type="button" data-cve="${escapeHtml(record.cve)}">
+          <span class="decision ${decisionClass(profile.residual.action)}">${escapeHtml(formatPriority(profile.residual.action))}</span>
+          <span class="worst-cve">${escapeHtml(record.cve)}</span>
+          <span class="worst-title">${escapeHtml(record.title)}</span>
+          <span class="secondary-line">${severityHtml(record)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(profile.residual.likelihood)}${record.threat.kev ? " · CISA KEV" : ""}</span>
+        </button></li>`).join("")
+    : `<li class="muted-copy">No advisory this month rises above Normal scheduled.</li>`;
+  list.onclick = event => {
+    const item = event.target.closest("button[data-cve]");
+    if (!item || !list.contains(item)) return;
+    state.selectedCve = item.dataset.cve;
+    setView("advisories");
+    renderDetail();
+  };
+}
+
+// A tile click answers "show me these". Replacing the selection rather than
+// adding to it means what you land on is what you clicked, regardless of what
+// was already ticked or which match mode is set.
+function showProduct(tag) {
+  state.selectedProducts = new Set([tag]);
+  for (const input of document.querySelectorAll("#product-filters input")) {
+    input.checked = input.value === tag;
+  }
+  updateProductSummary();
+  setView("advisories");
+  render();
+}
+
+const VIEWS = ["overview", "advisories"];
+
+function setView(view, { updateHash = true } = {}) {
+  state.view = VIEWS.includes(view) ? view : "overview";
+  for (const name of VIEWS) {
+    $(`view-${name}`).hidden = name !== state.view;
+    const tab = $(`tab-${name}`);
+    tab.setAttribute("aria-selected", String(name === state.view));
+  }
+  // Search applies to the advisory list only. Leaving it visible on a board it
+  // deliberately does not filter would read as a broken control.
+  $("smart-search-form").hidden = state.view !== "advisories";
+  if (updateHash) {
+    const suffix = state.view === "advisories" && state.selectedProducts.size === 1
+      ? `?product=${encodeURIComponent([...state.selectedProducts][0])}`
+      : "";
+    const next = `#${state.view}${suffix}`;
+    if (location.hash !== next) history.replaceState(null, "", next);
+  }
+}
+
+function applyHash() {
+  const raw = location.hash.replace(/^#/, "");
+  const [view, query] = raw.split("?");
+  const product = new URLSearchParams(query || "").get("product");
+  if (product && filterOptionTag(product)) {
+    state.selectedProducts = new Set([product]);
+    for (const input of document.querySelectorAll("#product-filters input")) {
+      input.checked = input.value === product;
+    }
+    updateProductSummary();
+  }
+  setView(VIEWS.includes(view) ? view : "overview", { updateHash: false });
+  render();
+}
+
 function render() {
+  renderOverview();
   const records = filteredRecords();
   const body = $("results-body");
   if (!records.some(record => record.cve === state.selectedCve)) state.selectedCve = records[0]?.cve || null;
@@ -388,17 +539,19 @@ $("clear-filters").addEventListener("click", () => {
   state.selectedProducts.clear();
   updateProductSummary();
   state.selectedMitigations.clear();
-  updateMitigationSummary();
+  syncMitigationWidgets();
   state.searchQuery = "";
   $("smart-search").value = "";
   render();
 });
 document.addEventListener("click", event => {
-  for (const id of ["product-select", "mitigation-select"]) {
+  for (const id of ["product-select", "mitigation-select", "ov-mitigation-select"]) {
     const select = $(id);
     if (select?.open && !select.contains(event.target)) select.open = false;
   }
 });
+for (const name of VIEWS) $(`tab-${name}`).addEventListener("click", () => setView(name));
+window.addEventListener("hashchange", applyHash);
 for (const id of ["severity-filters", "vector-filters", "filter-exploited", "filter-likely", "filter-review"]) $(id).addEventListener("change", render);
 $("smart-search-form").addEventListener("submit", event => event.preventDefault());
 $("smart-search").addEventListener("input", event => {
@@ -417,8 +570,11 @@ document.addEventListener("keydown", event => {
   }
 });
 
+// The overview is the landing view, so the filter list has to be in place before
+// the first render: the board is built from it, and a tile carrying a product
+// from the hash needs the option to exist before it can be selected.
 loadProductFilters()
   .then(() => { renderMatchModeToggle(); renderProductFilters(); })
-  .catch(error => { $("status").textContent = error.message; });
+  .catch(error => { $("status").textContent = error.message; })
+  .finally(() => loadPublishedMonths().catch(() => {}).then(applyHash));
 loadCatalog().catch(error => { $("status").textContent = error.message; });
-loadPublishedMonths().catch(() => {});

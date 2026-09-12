@@ -465,3 +465,116 @@ export function matchesSmartSearch(record, query, selectedMitigations = new Set(
     return negative ? !matched : matched;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Overview board
+// ---------------------------------------------------------------------------
+
+// One definition of what a filter option matches, shared by the checkbox filter
+// and the overview tiles. Two copies drifted once already: the config says
+// "product_tags+tags" but nothing here unions them, so the workload hint and the
+// reach figures quoted in the handoff describe behaviour the code does not have.
+// That discrepancy is reported, not silently corrected here - changing which
+// records a workload tag reaches changes what the tool asserts about coverage.
+export function recordFilterTags(record, source) {
+  return source === "tags" ? (record.tags || []) : (record.product_tags || []);
+}
+
+// A tile is green only when nothing at its worst level is missing a vendor
+// severity. Edge is the case that forces this: 23 Chromium passthrough records,
+// every one of them severity Unknown and review-required, all resolving to
+// Scheduled because unknown-severity's action is a placeholder. Its own reason
+// string says so - "a placeholder pending review, not a finding of low risk" -
+// and a green light would republish exactly the claim rule 1 exists to prevent.
+//
+// The boundary: Unverified replaces a colour that would understate, never one
+// that would overstate. A tile whose worst level is Expedited or Emergency keeps
+// that colour even if those records carry no vendor severity, because a
+// KEV-listed Unknown-severity record is an emergency with a data gap, not an
+// absence of urgency. Greying it would be the same coercion in the other
+// direction.
+const UNDERSTATING_ACTIONS = new Set(["Scheduled", "Defer and review"]);
+
+export const TILE_STATES = Object.freeze({
+  "Immediate": "emergency",
+  "Out-of-cycle": "expedited",
+  "Scheduled": "scheduled",
+  "Defer and review": "no-action",
+});
+
+export function summariseTile(records, selectedMitigations = new Set()) {
+  const counts = Object.fromEntries(ACTIONS.map(action => [action, 0]));
+  let worstIndex = -1;
+  for (const record of records) {
+    const action = predictProfile(record, selectedMitigations).residual.action;
+    counts[action] += 1;
+    worstIndex = Math.max(worstIndex, ACTIONS.indexOf(action));
+  }
+  const worstAction = worstIndex < 0 ? null : ACTIONS[worstIndex];
+  const atWorst = worstAction === null ? [] : records.filter(record =>
+    predictProfile(record, selectedMitigations).residual.action === worstAction);
+  const unverified = atWorst.length > 0
+    && UNDERSTATING_ACTIONS.has(worstAction)
+    && atWorst.every(record => record.severity === "Unknown");
+  const reviewCount = records.filter(record => reviewStatus(record).required).length;
+  return {
+    total: records.length,
+    counts,
+    worstAction,
+    worstCount: worstAction === null ? 0 : counts[worstAction],
+    reviewCount,
+    unverified,
+    state: worstAction === null ? "empty" : unverified ? "unverified" : TILE_STATES[worstAction],
+  };
+}
+
+// The board is deliberately independent of the severity, vector, search and
+// product filters. Those narrow the view; an overview that changes when you
+// untick "Local" is not an overview. Verified mitigations are the exception:
+// they are facts asserted about the estate, and they move the answer.
+export function overviewBoard(records, filterConfig, selectedMitigations = new Set()) {
+  return (filterConfig?.groups || []).map(group => ({
+    id: group.id,
+    label: group.label,
+    hint: group.hint || "",
+    source: group.source,
+    tiles: group.options
+      // An option can opt out of the board while staying in the filter list.
+      // "Microsoft" matches every record in the month, so as a tile it restates
+      // the month summary directly above it in a permanently alarming colour.
+      .filter(option => option.overview !== false)
+      .map(option => ({
+        tag: option.tag,
+        label: option.label,
+        ...summariseTile(
+          records.filter(record => recordFilterTags(record, group.source).includes(option.tag)),
+          selectedMitigations,
+        ),
+      })),
+  }));
+}
+
+// The month totals the tiles decompose. Same scope rule as the board.
+export function monthTotals(records, selectedMitigations = new Set()) {
+  const summary = summariseTile(records, selectedMitigations);
+  return { total: summary.total, counts: summary.counts, reviewCount: summary.reviewCount };
+}
+
+// The handful of advisories that set the tone for the month, worst first, then
+// by exploitation evidence. Ties break on CVE so the order is stable between
+// renders and between readers.
+export function worstFirst(records, selectedMitigations = new Set(), limit = 8) {
+  return records
+    .map(record => ({ record, profile: predictProfile(record, selectedMitigations) }))
+    .filter(item => ACTIONS.indexOf(item.profile.residual.action) >= 2)
+    .sort((a, b) => {
+      const byAction = ACTIONS.indexOf(b.profile.residual.action) - ACTIONS.indexOf(a.profile.residual.action);
+      if (byAction) return byAction;
+      const byLikelihood = LIKELIHOOD.indexOf(b.profile.residual.likelihood) - LIKELIHOOD.indexOf(a.profile.residual.likelihood);
+      if (byLikelihood) return byLikelihood;
+      const byScore = (b.record.cvss?.base_score ?? 0) - (a.record.cvss?.base_score ?? 0);
+      if (byScore) return byScore;
+      return a.record.cve.localeCompare(b.record.cve);
+    })
+    .slice(0, limit);
+}
