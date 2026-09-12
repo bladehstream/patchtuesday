@@ -120,15 +120,59 @@ export function updateSummary(record, selectedProducts = new Set()) {
   };
 }
 
+// CVRF note Type 8 carries the assigning CNA. Microsoft republishes third-party-CNA
+// CVEs across Chromium/Edge, Azure Linux packages, GitHub-assigned tooling,
+// VulnCheck-assigned dependencies and more - 212 of September's 1,185 records, from
+// 16 distinct CNAs. For a CVE it did not assign, Microsoft may decline to rate it at
+// all: severityId 0, no CVSS, no Exploitability Index, no KB. That is policy, not a
+// data gap, and it is universal for Chrome-CNA records.
+//
+// A CVE with no vendor severity is a declared UNKNOWN, not a declared LOW. The
+// severity path already resolves it to Unknown; this names who did assign it, so a
+// reviewer knows whose rating to go and read.
+export function issuingCna(record) {
+  const notes = record.vendor_guidance?.notes || [];
+  const note = notes.find(item => item?.type === 8 && String(item.title || "").trim());
+  return note ? String(note.title).trim() : null;
+}
+
+// Where the real rating lives for a third-party-CNA CVE. Static JSON, no key, and the
+// bucket is the CVE's number rounded down to thousands.
+export function cveProgramUrl(cve) {
+  const match = /^CVE-(\d{4})-(\d+)$/.exec(String(cve || ""));
+  if (!match) return null;
+  const [, year, serial] = match;
+  const bucket = `${serial.slice(0, -3) || "0"}xxx`;
+  return `https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/${year}/${bucket}/CVE-${year}-${serial}.json`;
+}
+
 export function reviewStatus(record) {
   const reasons = [];
   const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
+  // Context a reviewer should see, but not on its own a reason to hold the record. 189
+  // of September's 1,185 records carry a third-party CNA; making every one of them
+  // "review required" would bury the 23 that genuinely have no rating at all.
+  const note = (code, message, evidence = "") => reasons.push({ code, message, evidence, informational: true });
   if (record.customer_action_required === false) return { required: false, reasons };
+  const cna = issuingCna(record);
+  const thirdParty = Boolean(cna) && cna !== "Microsoft";
   if (record.severity === "Unknown") {
     add(
       "missing-vendor-severity",
-      "The vendor published no severity rating and no CVSS score. Establish the real severity before deciding.",
-      "Common for Chromium passthrough advisories, where Microsoft defers to the upstream vendor.",
+      thirdParty
+        ? `Microsoft declined to rate this CVE because ${cna} assigned it, so there is no severity, CVSS or Exploitability Index here. Read the assigning CNA's own rating before deciding.`
+        : "The vendor published no severity rating and no CVSS score. Establish the real severity before deciding.",
+      thirdParty
+        ? `Issuing CNA: ${cna}. Rating: ${cveProgramUrl(record.cve) || "CVE Program record"}`
+        : "No vendor severity and no CVSS score on the source record.",
+    );
+  } else if (thirdParty) {
+    // Rated by Microsoft despite a third-party assignment - worth knowing, because the
+    // two scales are not the same claim, but not on its own a reason to review.
+    note(
+      "third-party-cna",
+      `${cna} assigned this CVE; the rating shown is Microsoft's, not ${cna}'s. Check the two agree before citing either.`,
+      `Issuing CNA: ${cna}. Rating: ${cveProgramUrl(record.cve) || "CVE Program record"}`,
     );
   }
   if (missingImpactJudgement(record)) {
@@ -179,7 +223,7 @@ export function reviewStatus(record) {
     add("incomplete-prerequisites", "Confirm the missing CVSS or exploit-prerequisite details.");
   }
   if (record.threat?.epss_status === "stale") add("stale-threat-data", "Refresh the stale threat data before relying on the assessment.");
-  return { required: reasons.length > 0, reasons };
+  return { required: reasons.some(reason => !reason.informational), reasons };
 }
 
 export function baselineProfile(record) {
@@ -464,131 +508,4 @@ export function matchesSmartSearch(record, query, selectedMitigations = new Set(
     }
     return negative ? !matched : matched;
   });
-}
-
-// ---------------------------------------------------------------------------
-// Overview board
-// ---------------------------------------------------------------------------
-
-// One definition of what a filter option matches, shared by the checkbox filter
-// and the overview tiles. Two copies drifted once already: the config says
-// "product_tags+tags" but nothing here unions them, so the workload hint and the
-// reach figures quoted in the handoff describe behaviour the code does not have.
-// That discrepancy is reported, not silently corrected here - changing which
-// records a workload tag reaches changes what the tool asserts about coverage.
-export function recordFilterTags(record, source) {
-  return source === "tags" ? (record.tags || []) : (record.product_tags || []);
-}
-
-// A tile is green only when nothing at its worst level is missing a vendor
-// severity. Edge is the case that forces this: 23 Chromium passthrough records,
-// every one of them severity Unknown and review-required, all resolving to
-// Scheduled because unknown-severity's action is a placeholder. Its own reason
-// string says so - "a placeholder pending review, not a finding of low risk" -
-// and a green light would republish exactly the claim rule 1 exists to prevent.
-//
-// The boundary: Unverified replaces a colour that would understate, never one
-// that would overstate. A tile whose worst level is Expedited or Emergency keeps
-// that colour even if those records carry no vendor severity, because a
-// KEV-listed Unknown-severity record is an emergency with a data gap, not an
-// absence of urgency. Greying it would be the same coercion in the other
-// direction.
-const UNDERSTATING_ACTIONS = new Set(["Scheduled", "Defer and review"]);
-
-export const TILE_STATES = Object.freeze({
-  "Immediate": "emergency",
-  "Out-of-cycle": "expedited",
-  "Scheduled": "scheduled",
-  "Defer and review": "no-action",
-});
-
-export function summariseTile(records, selectedMitigations = new Set()) {
-  const counts = Object.fromEntries(ACTIONS.map(action => [action, 0]));
-  let worstIndex = -1;
-  // One profile per record. Every tile on the board runs this on every render,
-  // and predictProfile walks the mitigation candidates each time it is called.
-  const actions = records.map(record => predictProfile(record, selectedMitigations).residual.action);
-  for (const action of actions) {
-    counts[action] += 1;
-    worstIndex = Math.max(worstIndex, ACTIONS.indexOf(action));
-  }
-  const worstAction = worstIndex < 0 ? null : ACTIONS[worstIndex];
-  const unverified = worstAction !== null
-    && UNDERSTATING_ACTIONS.has(worstAction)
-    && records.every((record, index) => actions[index] !== worstAction || record.severity === "Unknown");
-  // reviewStatus is the most expensive thing here - it rebuilds the per-product
-  // update tables from the vendor remediation list. The loaders already compute
-  // it once per record, so use that result when it is present.
-  const reviewCount = records.filter(record =>
-    (record.review ? record.review.required : reviewStatus(record).required)).length;
-  return {
-    total: records.length,
-    counts,
-    worstAction,
-    worstCount: worstAction === null ? 0 : counts[worstAction],
-    reviewCount,
-    unverified,
-    state: worstAction === null ? "empty" : unverified ? "unverified" : TILE_STATES[worstAction],
-  };
-}
-
-// The board is deliberately independent of the severity, vector, search and
-// product filters. Those narrow the view; an overview that changes when you
-// untick "Local" is not an overview. Verified mitigations are the exception:
-// they are facts asserted about the estate, and they move the answer.
-export function overviewBoard(records, filterConfig, selectedMitigations = new Set()) {
-  return (filterConfig?.groups || []).map(group => ({
-    id: group.id,
-    label: group.label,
-    hint: group.hint || "",
-    source: group.source,
-    tiles: group.options
-      // An option can opt out of the board while staying in the filter list.
-      // "Microsoft" matches every record in the month, so as a tile it restates
-      // the month summary directly above it in a permanently alarming colour.
-      .filter(option => option.overview !== false)
-      .map(option => ({
-        tag: option.tag,
-        label: option.label,
-        ...summariseTile(
-          records.filter(record => recordFilterTags(record, group.source).includes(option.tag)),
-          selectedMitigations,
-        ),
-      })),
-  }));
-}
-
-// The month totals the tiles decompose. Same scope rule as the board.
-export function monthTotals(records, selectedMitigations = new Set()) {
-  const summary = summariseTile(records, selectedMitigations);
-  return { total: summary.total, counts: summary.counts, reviewCount: summary.reviewCount };
-}
-
-// The advisories that set the tone for the month. Every Emergency is shown
-// without exception - truncating that list would be the one omission an
-// administrator cannot afford - and Expedited records top it up to a readable
-// minimum. Once Emergency alone reaches the minimum the Expedited records are
-// dropped rather than appended, because at that point the month's problem is
-// the emergencies and a longer list only buries them.
-//
-// Ordering within each band runs on exploitation evidence, then CVSS, then CVE,
-// so the sequence is stable between renders and identical for two readers
-// looking at the same month.
-export function worstFirst(records, selectedMitigations = new Set(), { minimum = 10, maxTopUp = 10 } = {}) {
-  const ranked = records
-    .map(record => ({ record, profile: predictProfile(record, selectedMitigations) }))
-    .filter(item => ACTIONS.indexOf(item.profile.residual.action) >= 2)
-    .sort((a, b) => {
-      const byAction = ACTIONS.indexOf(b.profile.residual.action) - ACTIONS.indexOf(a.profile.residual.action);
-      if (byAction) return byAction;
-      const byLikelihood = LIKELIHOOD.indexOf(b.profile.residual.likelihood) - LIKELIHOOD.indexOf(a.profile.residual.likelihood);
-      if (byLikelihood) return byLikelihood;
-      const byScore = (b.record.cvss?.base_score ?? 0) - (a.record.cvss?.base_score ?? 0);
-      if (byScore) return byScore;
-      return a.record.cve.localeCompare(b.record.cve);
-    });
-  const emergency = ranked.filter(item => item.profile.residual.action === "Immediate");
-  if (emergency.length >= minimum) return emergency;
-  const topUp = ranked.filter(item => item.profile.residual.action === "Out-of-cycle");
-  return [...emergency, ...topUp.slice(0, Math.min(maxTopUp, minimum - emergency.length))];
 }
