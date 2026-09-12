@@ -58,7 +58,7 @@ def main() -> None:
     for record in published:
         model_tags = overlay[record["cve"]]
         record["tags"] = sorted(model_tags & judgement)
-        record["product_tags"] = ENRICH.derive_product_tags(record.get("products") or [])
+        record["product_tags"] = ENRICH.derive_product_tags(record.get("products") or [], record.get("title") or "")
         dropped += len(model_tags - judgement)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Collect a Claude CLI inference run into a merge-ready overlay JSONL.
+"""Collect an assessor CLI inference run into a merge-ready overlay JSONL.
 
-The Claude-path counterpart to scripts/collect_full_inference.py, which is
+The CLI-path counterpart to scripts/collect_full_inference.py, which is
 Luna-specific and must not be run for another provider. Same guarantees, different
 provenance source:
 
   Luna    the overlay carried its own invocation hashes, written by the Codex step
-  Claude  run_claude_inference.py writes raw model assessments with no provenance,
+  CLI     run_cli_inference.py writes raw model assessments with no provenance,
           so provenance is attached here from the run manifest and recomputed
           locally from the response files on disk
 

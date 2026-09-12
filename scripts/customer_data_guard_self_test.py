@@ -20,7 +20,7 @@ Three layers are exercised:
   1. detectors      - reject/accept pairs per category
   2. the refusal    - CustomerDataError names the record, field path and span,
                       and returns no redacted value
-  3. the wiring     - prepare_full_inference.py and run_claude_inference.py both
+  3. the wiring     - prepare_full_inference.py and run_cli_inference.py both
                       stop on a planted record, and both pass on a clean one
 """
 
@@ -39,7 +39,7 @@ import customer_data_guard as guard  # noqa: E402
 
 PUBLISHED = ROOT / "data" / "2026-Sep.jsonl"
 PREPARE = ROOT / "scripts" / "prepare_full_inference.py"
-RUNNER = ROOT / "scripts" / "run_claude_inference.py"
+RUNNER = ROOT / "scripts" / "run_cli_inference.py"
 
 failures: list[str] = []
 checks = 0
@@ -313,7 +313,7 @@ def wiring_cases() -> None:
              not list((work / "prep-dirty").rglob("input-*.jsonl")),
              str(list((work / "prep-dirty").rglob("*"))))
 
-        # run_claude_inference.py. A deliberately non-existent CLI proves the
+        # run_cli_inference.py. A deliberately non-existent CLI proves the
         # guard fires before any subprocess is launched: with the dirty file the
         # run must stop on the guard, not on "command not found".
         missing_cli = str(work / "no-such-model-cli")

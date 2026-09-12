@@ -2,9 +2,9 @@
 
 A dependency-free local prototype for filtering inference-enriched Microsoft CVRF data and applying verified enterprise mitigations to an explainable predicted risk profile.
 
-## Assessor guidance and Claude handoff
+## Assessor guidance and handoff
 
-Start with [CLAUDE_ASSESSOR_HANDOFF.md](CLAUDE_ASSESSOR_HANDOFF.md) for a portable trial prompt, read order, validation commands and known implementation gaps. The provider-neutral authoring requirements are versioned as **2026.09.2** in [prompts/assessor-evidence-guidance.md](prompts/assessor-evidence-guidance.md). The [independent 20-CVE review](models/2026-Sep-independent-20-review.md) is the calibration record. These documentation changes do not fix the identified parser/mitigation defects or implement the new structured review fields; those tasks are explicitly listed in the handoff.
+Start with [ASSESSOR_HANDOFF.md](ASSESSOR_HANDOFF.md) for a portable trial prompt, read order, validation commands and known implementation gaps. The provider-neutral authoring requirements are versioned as **2026.09.2** in [prompts/assessor-evidence-guidance.md](prompts/assessor-evidence-guidance.md). The [independent 20-CVE review](models/2026-Sep-independent-20-review.md) is the calibration record. These documentation changes do not fix the identified parser/mitigation defects or implement the new structured review fields; those tasks are explicitly listed in the handoff.
 
 ## Run the interface
 
@@ -93,9 +93,7 @@ The interface and exported assessment profiles use **Emergency**, **Expedited**,
 npm test
 ```
 
-`npm test` runs the node suite and `scripts/audit-mitigations.mjs`. It is node only,
-deliberately — the project has no python test dependency and the python checks are run
-as separate commands when the pipeline stage they cover is in play:
+`npm test` runs the node suite and `scripts/audit-mitigations.mjs`. It is node only, deliberately — the project has no python test dependency and the python checks are run as separate commands when the pipeline stage they cover is in play:
 
 ```powershell
 python3 tests/test_enrich_cvrf.py
@@ -106,10 +104,9 @@ python3 scripts/tag_validators_self_test.py
 python3 scripts/span_verify_self_test.py
 python3 scripts/assessor_sandbox_self_test.py
 python3 scripts/inference_sandbox_self_test.py
-python3 scripts/collect_claude_self_test.py
+python3 scripts/collect_cli_self_test.py
 ```
 
-`scripts/scorer_self_test.py` also exists but invokes the Claude CLI, so it is run when
-the scorer changes rather than routinely. See `docs/MONTHLY-RUNBOOK.md` step 10.
+`scripts/scorer_self_test.py` also exists but invokes the assessor CLI, so it is run when the scorer changes rather than routinely. See `docs/MONTHLY-RUNBOOK.md` step 10.
 
 The demonstration JSONL contains synthetic records and must not be treated as Microsoft advisory data.

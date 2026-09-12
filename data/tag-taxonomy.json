@@ -78,7 +78,7 @@
     ]
   },
   "derivation": {
-    "note": "Which namespaces are derived deterministically from structured product data and which are model judgements. Only judgement namespaces reach the risk path.",
+    "note": "Which namespaces are derived deterministically from structured vendor strings and which are model judgements. Only judgement namespaces reach the risk path. The workload namespace is both: the seven tags in derived_from_title_component are asserted deterministically from the component half of the MSRC title, and the assessor may add to that set but never subtract from it. Leaving these to judgement alone cost 20 of 27 Remote Desktop records and 11 of 26 identity records their filter tag on 2026-Sep.",
     "derived_from_products": [
       "vendor",
       "platform",
@@ -89,6 +89,15 @@
       "workload",
       "delivery",
       "impact"
+    ],
+    "derived_from_title_component": [
+      "identity",
+      "remote-desktop",
+      "dns",
+      "dhcp",
+      "hyper-v",
+      "exchange",
+      "web-server"
     ]
   },
   "definitions": {

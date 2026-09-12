@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run assessor inference through the Claude CLI. Provider-neutral by construction.
+"""Run assessor inference through the assessor CLI. Provider-neutral by construction.
 
 Structurally identical to scripts/run_luna_inference.py: a local CLI subprocess,
 a captured response, locally computed hashes. Swapping providers means swapping the
@@ -15,7 +15,7 @@ Measure 1 (schema conformance) is recorded, never repaired. A response that come
 back unparseable or schema-invalid is a conformance failure; silently fixing it
 would convert the exact capability under test into apparent success.
 
-Environment note: the Claude CLI lives in the cloud container, not on the device
+Environment note: the assessor CLI lives in the cloud container, not on the device
 bridge, so this script runs there against staged records.
 
 Trap, learned 2026-09-10: --exclude-dynamic-system-prompt-sections silently breaks
@@ -32,7 +32,7 @@ Sandbox: every model invocation from this file is sandboxed - an empty MCP confi
 plus --strict-mcp-config, --allowedTools __none__ and a named denylist. On
 2026-09-10 this adapter passed none of them, so assessor invocations ran as full
 agents with the session's MCP servers attached and wrote eleven documents into
-the user's live claude.ai project while being asked to assess advisories. The
+the user's live hosted project while being asked to assess advisories. The
 definition is imported from scripts/score_tags.py rather than copied: a second
 copy is how the two callers drifted apart in the first place, and the copy that
 was supposed to land here never did.
@@ -123,7 +123,7 @@ def build_schema(cves: list[str], tags: set[str], controls: set[str]) -> dict:
     # the source-fidelity gate, and a gate the pipeline satisfies on the model's
     # behalf cannot fail. The enrichment contract has always required this field -
     # it was missing here, and additionalProperties:false meant a conformant model
-    # could not emit it, which is why no Claude run ever reached merge_inference.
+    # could not emit it, which is why no run on this path ever reached merge_inference.
     cvss_basis = obj({
         "base_score": {"type": ["number", "null"]},
         "vector": {"type": ["string", "null"]},
@@ -206,6 +206,8 @@ def main() -> None:
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--arm", choices=["scaffolded", "minimal"], required=True)
     parser.add_argument("--model", default="haiku")
+    # Default is the name of the CLI executable on disk, not a provider credit;
+    # override it to point at a different assessor binary.
     parser.add_argument("--cli", default="claude")
     parser.add_argument("--batch-size", type=int, default=15, help="Matches the Luna run, so batching is not confounded with harness changes")
     parser.add_argument("--contract", type=Path, default=Path("prompts/enrichment-system.md"))

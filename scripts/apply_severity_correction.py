@@ -8,7 +8,7 @@ Microsoft defers to Google.
 This script copies `severity` and `severity_basis` from a freshly enriched
 baseline onto the published records. It deliberately does NOT touch the
 inference overlay: Luna's stored assessment is the historical claim and is
-retained as evidence per CLAUDE_ASSESSOR_HANDOFF.md. Records whose severity
+retained as evidence per ASSESSOR_HANDOFF.md. Records whose severity
 becomes Unknown are surfaced by the computed review flag in engine.js, not by
 rewriting the prior model output.
 

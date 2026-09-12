@@ -22,7 +22,7 @@ IMPACT_TAGS = {
     "information-disclosure", "denial-of-service", "spoofing",
 }
 
-# Named in CLAUDE_ASSESSOR_HANDOFF.md as cases the previous assessor got wrong or
+# Named in ASSESSOR_HANDOFF.md as cases the previous assessor got wrong or
 # was challenged on. These, plus the missing-impact records, form a REFERENCE
 # FAILURES set that goes to dev only. They are deliberately excluded from the
 # dev-versus-holdout comparison: they are too few to split, and including them on

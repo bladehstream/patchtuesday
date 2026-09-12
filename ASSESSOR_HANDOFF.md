@@ -1,4 +1,4 @@
-# Claude assessor handoff
+# Assessor handoff
 
 Start here. Guidance revision **2026.09.2**, recorded 2026-09-10.
 
@@ -19,7 +19,7 @@ The published September snapshot contains 1,185 actual Luna assessments. The ind
 
 The refreshed MSRC feed retrieved at 2026-09-10T04:18:17Z contained 1,186 records, adding CVE-2026-85046. Recheck the live manifest/revisions before any fresh production run; do not freeze the expected total at 1,185. Existing tests still contain September-specific counts.
 
-This handoff updates guidance only. It does not certify production readiness, rerun inference, change live ratings, implement the listed code fixes, or launch Claude.
+This handoff updates guidance only. It does not certify production readiness, rerun inference, change live ratings, implement the listed code fixes, or launch an assessor run.
 
 ## Known findings to address or retain as open issues
 
@@ -35,15 +35,15 @@ Primary Undici reference: https://github.com/nodejs/undici/security/advisories/G
 
 ## Copyable starter task
 
-> Review the files listed in CLAUDE_ASSESSOR_HANDOFF.md, especially guidance revision 2026.09.2. Start with the frozen 20-CVE calibration sample in models/2026-Sep-independent-20-review.json. Read source evidence before the existing ratings. Produce an actual per-CVE assessment; do not build a keyword classifier or generic text generator and label it model inference. Use the exact Claude model identifier and actual timestamps.
+> Review the files listed in ASSESSOR_HANDOFF.md, especially guidance revision 2026.09.2. Start with the frozen 20-CVE calibration sample in models/2026-Sep-independent-20-review.json. Read source evidence before the existing ratings. Produce an actual per-CVE assessment; do not build a keyword classifier or generic text generator and label it model inference. Use the exact model identifier and actual timestamps.
 >
-> Fetch public sources programmatically or use the frozen raw snapshot if available. Retain source revisions, original model responses, and a run manifest. Do not collect customer-specific asset information. Write trial outputs under work/claude-trial/. Preserve the existing published dataset.
+> Fetch public sources programmatically or use the frozen raw snapshot if available. Retain source revisions, original model responses, and a run manifest. Do not collect customer-specific asset information. Write trial outputs under work/assessor-trial/. Preserve the existing published dataset.
 >
 > Use the existing overlay fields and legacy action strings, plus the evidence extensions in prompts/assessor-evidence-guidance.md. Record attack direction, control prerequisites, residual paths and structured review reasons. Highlight missing source values instead of inheriting a fabricated Low rating.
 >
 > Compare your results with the independent review after making your own judgments. Separate factual failures, unsupported control credit, and defensible priority differences. Report known pipeline/adapter gaps explicitly. Do not publish a sample as a complete release. If subsequently authorized to replace production data, assess every CVE in the fresh source manifest and pass complete-coverage validation first.
 
-A Claude Code instance with this checkout can read these files directly. For a separate chat, supply the listed guidance, taxonomy, catalogue and selected source records; do not assume it can access ignored local files.
+An assessor CLI instance with this checkout can read these files directly. For a separate chat, supply the listed guidance, taxonomy, catalogue and selected source records; do not assume it can access ignored local files.
 
 ## Data and validation paths
 
@@ -57,18 +57,18 @@ A Claude Code instance with this checkout can read these files directly. For a s
 Generic validation for a deliberately limited trial:
 
 ```powershell
-python scripts/merge_inference.py --baseline work/claude-trial/baseline.jsonl --inference work/claude-trial/assessments.jsonl --output work/claude-trial/validated.jsonl
+python scripts/merge_inference.py --baseline work/assessor-trial/baseline.jsonl --inference work/assessor-trial/assessments.jsonl --output work/assessor-trial/validated.jsonl
 ```
 
 Use a baseline containing the intended source set. Do not use --include-unreviewed to conceal missing inference. For a full-release output, add --require-complete and compare the source set with the fresh MSRC release.
 
-The generic merger accepts another provider's model name. Do **not** run scripts/run_luna_inference.py or scripts/collect_full_inference.py unchanged for Claude: they are Luna-specific, including model/provenance checks and response schema. Never label Claude output as Luna to bypass those checks.
+The generic merger accepts another provider's model name. Do **not** run scripts/run_luna_inference.py or scripts/collect_full_inference.py unchanged for another provider: they are Luna-specific, including model/provenance checks and response schema. Never label another provider's output as Luna to bypass those checks.
 
 Source acquisition, when needed:
 
 ```powershell
-python scripts/fetch_sources.py --month 2026-Sep --output-dir work/claude-trial/raw
-python scripts/enrich_cvrf.py --cvrf work/claude-trial/raw/2026-Sep.json --month 2026-Sep --kev work/claude-trial/raw/known_exploited_vulnerabilities.json --epss work/claude-trial/raw/epss_scores-current.csv --fetch-metadata work/claude-trial/raw/2026-Sep-fetch-metadata.json --output work/claude-trial/baseline.jsonl
+python scripts/fetch_sources.py --month 2026-Sep --output-dir work/assessor-trial/raw
+python scripts/enrich_cvrf.py --cvrf work/assessor-trial/raw/2026-Sep.json --month 2026-Sep --kev work/assessor-trial/raw/known_exploited_vulnerabilities.json --epss work/assessor-trial/raw/epss_scores-current.csv --fetch-metadata work/assessor-trial/raw/2026-Sep-fetch-metadata.json --output work/assessor-trial/baseline.jsonl
 ```
 
 Caution: that existing normalizer still has the missing-severity defect described above. For a trial, record the defect and source truth in the evidence extension. Implement and test correct Unknown handling before publishing corrected source data; do not silently alter cvss_basis or immutable vendor facts merely to satisfy a validator.
@@ -79,7 +79,7 @@ Caution: that existing normalizer still has the missing-severity defect describe
 2. Model adapters: request and validate attack_path, review_requirement, evidence_sources and per-control evidence fields. The current strict Luna schema excludes them.
 3. Review rendering: consume structured review reasons; the current keyword detector misses scope ambiguity.
 4. Validators: check route direction and evidence references, not only CVSS vector compatibility. A schema pass alone will not catch the Undici error.
-5. Provider adapter: record actual Claude calls/receipts and exact CVE coverage without Luna-specific assumptions.
+5. Provider adapter: record actual CLI calls/receipts and exact CVE coverage without Luna-specific assumptions.
 6. Freshness: diff source CVE sets and revisions, including newly added records. Current complete-coverage gates check the supplied snapshot, not the live remote release.
 7. Calibration: use ranges and mandatory reasoning for judgment cases; reserve exact expectations for factual rules. Keep an unseen evaluation sample.
 

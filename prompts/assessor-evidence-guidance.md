@@ -1,8 +1,6 @@
 # Assessor evidence and review guidance
 
-Guidance version: **2026.09.2**, recorded 2026-09-10.
-Applies to Claude, Luna and other assessors. This is an authoring contract, not a claim that all checks below are enforced by the current code.
-The executable risk-model version remains **2026.09.1**.
+Guidance version: **2026.09.2**, recorded 2026-09-10. Applies to Luna and every other assessor provider. This is an authoring contract, not a claim that all checks below are enforced by the current code. The executable risk-model version remains **2026.09.1**.
 
 ## Purpose and limits
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Self-test for collect_claude_inference.py. Plain python, no test framework.
+"""Self-test for collect_cli_inference.py. Plain python, no test framework.
 
-    python3 scripts/collect_claude_self_test.py
+    python3 scripts/collect_cli_self_test.py
 
 Every gate in the collector gets a fixture it rejects, plus fixtures it accepts. A
 gate that has never been seen to fail is not evidence of anything - and a mutation
@@ -23,7 +23,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-COLLECTOR = ROOT / "scripts" / "collect_claude_inference.py"
+COLLECTOR = ROOT / "scripts" / "collect_cli_inference.py"
 PUBLISHED = ROOT / "data" / "2026-Sep.jsonl"
 SAMPLE = 6
 
@@ -67,7 +67,7 @@ def split(record: dict) -> tuple[dict, dict]:
 
 
 def build_run(work: Path, name: str, pairs: list) -> tuple[Path, Path]:
-    """Write a records file and a run directory as run_claude_inference.py would."""
+    """Write a records file and a run directory as run_cli_inference.py would."""
     sources = [source for source, _ in pairs]
     overlays = [overlay for _, overlay in pairs]
     records_path = work / f"{name}-records.jsonl"
@@ -75,6 +75,10 @@ def build_run(work: Path, name: str, pairs: list) -> tuple[Path, Path]:
 
     run = work / name
     run.mkdir()
+    # The model/provider strings below are values the CLI actually returns in its
+    # response envelope and manifest - captured API output, not attribution. The
+    # collector's provenance handling is exactly what is under test here, so these
+    # must stay verbatim or the test stops testing anything.
     envelope = {
         "structured_output": {"assessments": overlays},
         "modelUsage": {"claude-haiku-self-test": {"canonicalModel": "haiku", "provider": "anthropic", "costUSD": 0.0}},

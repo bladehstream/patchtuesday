@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Refuse to send customer-identifying data to an inference provider.
 
-CLAUDE.md and CLAUDE_ASSESSOR_HANDOFF.md both state the rule:
+CLAUDE.md and ASSESSOR_HANDOFF.md both state the rule:
 
     No customer data in inference. No hostnames, IPs, tenant identifiers,
     inventories or topology. Public advisory material only.
@@ -15,7 +15,7 @@ Three design decisions, each of which could reasonably have gone the other way:
 
 1.  The check runs in the packet-construction path, before the prompt leaves the
     process. scripts/prepare_full_inference.py guards every packet it writes and
-    scripts/run_claude_inference.py guards every record, every prompt and the
+    scripts/run_cli_inference.py guards every record, every prompt and the
     system prompt immediately before subprocess.run. A detector that inspects a
     transcript afterwards tells you the data has already left.
 
@@ -561,7 +561,7 @@ def _scan_dataset(path: Path, show: int) -> int:
     """Two scopes, because two different things get sent.
 
     prepare_full_inference.py ships a projection of each record; the packet
-    scope measures exactly those fields. run_claude_inference.py ships whole
+    scope measures exactly those fields. run_cli_inference.py ships whole
     records from its --records file, so the record scope measures everything,
     including dataset_provenance URLs that never reach a packet.
     """

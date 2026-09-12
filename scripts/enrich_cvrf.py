@@ -62,12 +62,90 @@ ENDPOINT_RELEASES = {"windows-10", "windows-11"}
 SERVER_RELEASES = {"server-2012", "server-2016", "server-2019", "server-2022", "server-2025"}
 
 
-def derive_product_tags(products: list[dict[str, Any]]) -> list[str]:
+# MSRC titles follow one shape: "<Component> <Impact class> Vulnerability". The
+# component half names the workload role; the product tree does not - it lists the
+# OS SKUs the component ships on ("Windows Server 2022"), so a Remote Desktop
+# Services RCE and a GDI RCE have identical product trees. Measured on 2026-Sep:
+# 964 of 1185 titles parse into this shape, and the component half resolves to a
+# bounded vocabulary of 263 strings.
+#
+# This is a lookup on a delimited vendor field, not pattern matching on advisory
+# prose. It answers "which component is this" - a fact Microsoft states - and never
+# "how risky is this", which stays with the assessor. Leaving it to the assessor
+# cost 20 of 27 Remote Desktop records and 11 of 26 identity records their filter
+# tag on 2026-Sep: an administrator who ticked Remote Desktop saw 7 of 27.
+IMPACT_CLASSES: tuple[str, ...] = (
+    "remote code execution",
+    "elevation of privilege",
+    "information disclosure",
+    "denial of service",
+    "security feature bypass",
+    "spoofing",
+    "tampering",
+    "cross-site scripting",
+    "memory corruption",
+)
+TITLE_SHAPE = re.compile(
+    r"\s+(?:" + "|".join(re.escape(item) for item in IMPACT_CLASSES) + r")\s+vulnerabilit(?:y|ies)\s*$",
+    re.IGNORECASE,
+)
+
+# (tag, required phrases, excluded phrases). A component earns the tag when any
+# required phrase appears as whole words and no excluded phrase does. Exclusions
+# are not hypothetical: "Windows Internet Key Exchange (IKE) Extension" contains
+# "Exchange" and is not Exchange Server.
+WORKLOAD_COMPONENT_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+    ("identity", ("active directory", "kerberos", "netlogon", "key distribution center",
+                  "local security authority", "ad fs", "ad cs"), ()),
+    ("remote-desktop", ("remote desktop", "terminal services"), ()),
+    ("dns", ("dns",), ()),
+    ("dhcp", ("dhcp",), ()),
+    ("hyper-v", ("hyper-v",), ()),
+    ("exchange", ("exchange",), ("key exchange",)),
+    ("web-server", ("internet information services", "iis"), ()),
+)
+
+
+def title_component(title: str) -> str | None:
+    """Return the component half of an MSRC title, or None if it is not that shape.
+
+    A title that does not parse yields no deterministic tag at all. Guessing at a
+    component from a title of unknown shape is the prose matching this function
+    exists to avoid.
+    """
+    text = (title or "").strip()
+    match = TITLE_SHAPE.search(text)
+    if not match or match.start() == 0:
+        return None
+    return text[: match.start()].strip() or None
+
+
+def _mentions(haystack: str, phrase: str) -> bool:
+    return re.search(r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])", haystack) is not None
+
+
+def derive_workload_tags(title: str) -> list[str]:
+    """Derive workload-role tags from the component named in an MSRC title."""
+    component = title_component(title)
+    if component is None:
+        return []
+    lowered = component.lower()
+    tags = set()
+    for tag, required, excluded in WORKLOAD_COMPONENT_RULES:
+        if any(_mentions(lowered, phrase) for phrase in excluded):
+            continue
+        if any(_mentions(lowered, phrase) for phrase in required):
+            tags.add(tag)
+    return sorted(tags)
+
+
+def derive_product_tags(products: list[dict[str, Any]], title: str = "") -> list[str]:
     """Derive platform, release and deployment tags from the structured product list.
 
-    This is parsing, not judgement: every tag here is a lookup against product names
-    Microsoft published in the CVRF product tree. Nothing here reaches a risk
-    decision - the risk path reads only model-asserted tags.
+    This is parsing, not judgement: every tag here is a lookup against strings
+    Microsoft published - product names in the CVRF product tree, and the component
+    half of the advisory title. Nothing here reaches a risk decision; the risk path
+    reads only model-asserted tags.
     """
     names = " | ".join(str(product.get("name") or "") for product in products).lower()
     tags = {"microsoft"}
@@ -79,6 +157,7 @@ def derive_product_tags(products: list[dict[str, Any]]) -> list[str]:
     if "visual-studio" in tags and "vscode" in tags:
         if "microsoft visual studio" not in names.replace("visual studio code", ""):
             tags.discard("visual-studio")
+    tags.update(derive_workload_tags(title))
     if "windows" in names:
         tags.add("windows")
     if tags & SERVER_RELEASES or "windows server" in names:
@@ -280,7 +359,7 @@ def build_records(
         # Judgement tags come from the model overlay alone. Product tags are derived
         # separately from structured data and never merged into the risk path.
         tags = sorted(set(as_list(overlay.get("tags"))))
-        product_tags = derive_product_tags(products)
+        product_tags = derive_product_tags(products, title)
         notes = [
             {"title": str(note.get("Title") or ""), "type": note.get("Type"), "value": text_value(note)}
             for note in as_list(vuln.get("Notes")) if isinstance(note, dict) and (note.get("Value") or note.get("value"))

@@ -55,6 +55,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--model", default="haiku")
+    # Default is the name of the CLI executable on disk, not a provider credit.
     parser.add_argument("--cli", default="claude")
     parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args()

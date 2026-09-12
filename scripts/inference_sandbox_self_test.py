@@ -4,14 +4,14 @@
     python3 scripts/inference_sandbox_self_test.py
 
 Companion to scripts/assessor_sandbox_self_test.py, which covers the scorer. This
-one covers scripts/run_claude_inference.py, which had never been sandboxed at all
+one covers scripts/run_cli_inference.py, which had never been sandboxed at all
 despite the runbook saying it was.
 
 WHY THIS IS NOT A CANARY TEST. On 2026-09-10 the sandbox was declared "verified by
 canary": an assessor was told to write /tmp/canary.txt, the file did not appear,
 and that was taken as proof. It proved only that local Write and Bash were denied.
 MCP was still attached, and the next cycle wrote six more documents into the user's
-claude.ai project. A canary can only demonstrate the absence of the one capability
+hosted project. A canary can only demonstrate the absence of the one capability
 it probes; it cannot demonstrate that the restrictions were passed at all. So this
 asserts on the constructed command line and on the call site, by name.
 
@@ -31,7 +31,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import run_claude_inference as rci  # noqa: E402
+import run_cli_inference as rci  # noqa: E402
 import score_tags  # noqa: E402
 
 # Anything that can write, execute, or reach the network. Read and Grep are in the
@@ -40,22 +40,26 @@ import score_tags  # noqa: E402
 WRITE_OR_REACH = ("Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch",
                   "WebSearch", "Task", "NotebookEdit")
 
-SOURCE = (ROOT / "scripts" / "run_claude_inference.py").read_text(encoding="utf-8")
+SOURCE = (ROOT / "scripts" / "run_cli_inference.py").read_text(encoding="utf-8")
+
+# The name of the CLI executable on disk, matching the adapter's --cli default.
+# It is an argv[0], not a provider credit.
+CLI = "claude"
 
 
 def command_for(arm: str) -> list[str]:
     """Build a real command the way main() does, for the named arm."""
     schema = {"type": "object"} if arm == "scaffolded" else None
-    return rci.build_command("claude", "haiku", Path("/tmp/system-prompt.txt"),
+    return rci.build_command(CLI, "haiku", Path("/tmp/system-prompt.txt"),
                              Path("/tmp/empty-mcp.json"), schema)
 
 
 def sandbox_args_are_imported_not_copied():
     """A second copy is how the scorer and the adapter drifted apart."""
     assert rci.SANDBOX_ARGS is score_tags.SANDBOX_ARGS, \
-        "run_claude_inference must import the one SANDBOX_ARGS, not hold its own list"
+        "run_cli_inference must import the one SANDBOX_ARGS, not hold its own list"
     assert "SANDBOX_ARGS = [" not in SOURCE, \
-        "SANDBOX_ARGS must not be redefined in run_claude_inference.py"
+        "SANDBOX_ARGS must not be redefined in run_cli_inference.py"
 
 
 def the_scaffolded_command_carries_every_restriction():
@@ -92,7 +96,7 @@ def the_empty_mcp_config_is_written_and_is_empty():
         assert path.is_file(), "the empty MCP config was not written"
         assert json.loads(path.read_text(encoding="utf-8")) == {"mcpServers": {}}, \
             "the MCP config handed to the run must declare no servers"
-        command = rci.build_command("claude", "haiku", Path("/tmp/sp.txt"), path, None)
+        command = rci.build_command(CLI, "haiku", Path("/tmp/sp.txt"), path, None)
         assert command[command.index("--mcp-config") + 1] == str(path), \
             "the written config must be the one passed to the CLI"
 

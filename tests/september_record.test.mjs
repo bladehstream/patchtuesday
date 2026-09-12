@@ -51,11 +51,30 @@ for (const item of unknowns) {
   assert.ok(status.reasons.some(reason => reason.code === "missing-vendor-severity"), `${item.cve} must carry the missing-vendor-severity review reason`);
 }
 // Layer separation: nothing the risk path reads may be produced by matching
-// advisory prose. Product tags are derived from the structured product tree and are
+// advisory prose. Product tags are derived from structured vendor strings and are
 // cosmetic; judgement tags are model-asserted and gate mitigation credit and
 // archetypes. The two must not mix.
+//
+// Narrowed 2026-09-12. Seven workload tags are now asserted deterministically from
+// the component half of the MSRC title, which is a lookup on a delimited vendor
+// field and not prose matching - the taxonomy declares them in
+// derivation.derived_from_title_component. They are therefore legitimately present
+// in product_tags. Everything else in the judgement namespaces still is not, so
+// this gate can still fail: a model-only workload tag, or any delivery or impact
+// tag, leaking into the derived set is caught exactly as before.
 const taxonomy = JSON.parse(fsSync.readFileSync(new URL("../data/tag-taxonomy.json", import.meta.url), "utf8"));
-const judgement = new Set(["workload", "delivery", "impact"].flatMap(ns => taxonomy.namespaces[ns]));
+const deterministicWorkloads = new Set(taxonomy.derivation.derived_from_title_component || []);
+// The declaration cannot be used to smuggle a risk-path tag into the derived set.
+// Delivery and impact are what gate mitigation credit and archetype selection, so
+// nothing in either may ever be declared deterministic, whatever the title says.
+const riskPathOnly = new Set(["delivery", "impact"].flatMap(ns => taxonomy.namespaces[ns]));
+for (const tag of deterministicWorkloads) {
+  assert.ok(!riskPathOnly.has(tag),
+    `${tag} is declared deterministic but is a delivery or impact tag; those gate mitigation credit and must stay model-asserted`);
+}
+const judgement = new Set(["workload", "delivery", "impact"]
+  .flatMap(ns => taxonomy.namespaces[ns])
+  .filter(tag => !deterministicWorkloads.has(tag)));
 const derived = new Set(["vendor", "platform", "deployment", "release"].flatMap(ns => taxonomy.namespaces[ns]));
 for (const item of records) {
   assert.ok(Array.isArray(item.product_tags), `${item.cve} must carry derived product_tags`);

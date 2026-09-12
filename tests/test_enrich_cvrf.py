@@ -199,6 +199,99 @@ def test_published_records_are_reachable_by_a_specific_filter():
     )
 
 
+# (title, tags it must yield). Every rule in WORKLOAD_COMPONENT_RULES needs a case
+# here; test_every_workload_rule_has_a_fixture enforces that, so a rule cannot be
+# added without one.
+WORKLOAD_TITLE_TAGS = [
+    ("Remote Desktop Services Remote Code Execution Vulnerability", {"remote-desktop"}),
+    ("Remote Desktop Client Remote Code Execution Vulnerability", {"remote-desktop"}),
+    ("Windows Remote Desktop Protocol Information Disclosure Vulnerability", {"remote-desktop"}),
+    ("Remote Desktop Gateway Service Elevation of Privilege Vulnerability", {"remote-desktop"}),
+    ("Windows Active Directory Domain Services Elevation of Privilege Vulnerability", {"identity"}),
+    ("Active Directory Certificate Services (AD CS) Elevation of Privilege Vulnerability", {"identity"}),
+    ("Active Directory Federation Services (AD FS) Spoofing Vulnerability", {"identity"}),
+    ("Windows Kerberos Elevation of Privilege Vulnerability", {"identity"}),
+    ("Windows Key Distribution Center Denial of Service Vulnerability", {"identity"}),
+    ("Windows Netlogon Spoofing Vulnerability", {"identity"}),
+    ("Microsoft Local Security Authority (LSA) Server Elevation of Privilege Vulnerability", {"identity"}),
+    ("Windows DNS Server Remote Code Execution Vulnerability", {"dns"}),
+    ("Windows DHCP Server Remote Code Execution Vulnerability", {"dhcp"}),
+    ("Windows Hyper-V Elevation of Privilege Vulnerability", {"hyper-v"}),
+    ("Microsoft Exchange Server Spoofing Vulnerability", {"exchange"}),
+    ("Internet Information Services Denial of Service Vulnerability", {"web-server"}),
+    ("Windows IIS Server Elevation of Privilege Vulnerability", {"web-server"}),
+]
+
+# Near misses. Each contains a rule phrase as a substring and must NOT earn the tag.
+WORKLOAD_TITLE_NON_TAGS = [
+    # Contains "Exchange". It is an IPsec key negotiation component, not Exchange Server.
+    ("Windows Internet Key Exchange (IKE) Extension Denial of Service Vulnerability", "exchange"),
+    # Not the Remote Desktop Connection Broker. A loose substring rule over the whole
+    # title flagged this one, which is how the precision half of this fix was found.
+    ("Windows Network Connection Broker Information Disclosure Vulnerability", "remote-desktop"),
+    ("Windows Routing and Remote Access Service (RRAS) Remote Code Execution Vulnerability", "remote-desktop"),
+]
+
+
+def test_workload_title_yields_its_filter_tag():
+    for title, expected in WORKLOAD_TITLE_TAGS:
+        derived = set(MODULE.derive_workload_tags(title))
+        assert expected <= derived, f"{title!r} must yield {sorted(expected)}, got {sorted(derived)}"
+
+
+def test_near_miss_titles_do_not_earn_the_tag():
+    for title, forbidden in WORKLOAD_TITLE_NON_TAGS:
+        derived = set(MODULE.derive_workload_tags(title))
+        assert forbidden not in derived, f"{title!r} must not claim {forbidden!r}"
+
+
+def test_every_workload_rule_has_a_fixture():
+    """A rule with no fixture is a rule nobody has seen work or fail."""
+    covered = set()
+    for title, expected in WORKLOAD_TITLE_TAGS:
+        covered |= expected
+    declared = {tag for tag, _, _ in MODULE.WORKLOAD_COMPONENT_RULES}
+    assert declared == covered, (
+        f"rules without a fixture: {sorted(declared - covered)}; "
+        f"fixtures for rules that no longer exist: {sorted(covered - declared)}"
+    )
+
+
+def test_a_title_of_unknown_shape_yields_nothing():
+    """No component, no tag. Guessing at one is the prose matching this avoids."""
+    for title in ("Chromium: CVE-2026-1234 Use after free in V8",
+                  "Remote Desktop Services",
+                  "",
+                  "Remote Code Execution Vulnerability"):
+        assert MODULE.derive_workload_tags(title) == [], f"{title!r} must yield no workload tag"
+
+
+def test_workload_tags_reach_the_product_tag_set():
+    """The rule must be wired into derive_product_tags, not merely defined."""
+    tags = MODULE.derive_product_tags(
+        products("Windows Server 2022"),
+        "Remote Desktop Services Remote Code Execution Vulnerability")
+    assert "remote-desktop" in tags, (
+        "a Remote Desktop advisory whose product tree names only the OS SKU must still "
+        "carry the remote-desktop filter tag")
+
+
+def test_published_records_carry_their_deterministic_workload_tag():
+    if not PUBLISHED.exists():
+        raise AssertionError(f"{PUBLISHED} is missing; this check cannot be skipped silently")
+    with PUBLISHED.open(encoding="utf-8") as handle:
+        records = [json.loads(line) for line in handle if line.strip()]
+    missing = []
+    for record in records:
+        expected = set(MODULE.derive_workload_tags(record.get("title") or ""))
+        carried = set(record.get("product_tags") or []) | set(record.get("tags") or [])
+        if expected - carried:
+            missing.append((record["cve"], sorted(expected - carried)))
+    assert not missing, (
+        f"{len(missing)} published records name a workload component in their title but "
+        f"cannot be reached by its filter: {missing[:10]}")
+
+
 CASES = [
     test_build_records_maps_product_and_vector,
     test_resolve_severity_preserves_unknown_when_vendor_publishes_nothing,
@@ -213,6 +306,13 @@ CASES = [
     test_vscode_does_not_claim_the_visual_studio_ide_tag,
     test_both_tags_when_both_products_are_present,
     test_published_records_are_reachable_by_a_specific_filter,
+
+    test_workload_title_yields_its_filter_tag,
+    test_near_miss_titles_do_not_earn_the_tag,
+    test_every_workload_rule_has_a_fixture,
+    test_a_title_of_unknown_shape_yields_nothing,
+    test_workload_tags_reach_the_product_tag_set,
+    test_published_records_carry_their_deterministic_workload_tag,
 ]
 
 

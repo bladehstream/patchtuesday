@@ -29,7 +29,7 @@ def main() -> None:
     changed = 0
     for record in records:
         before = record.get("product_tags") or []
-        after = ENRICH.derive_product_tags(record.get("products") or [])
+        after = ENRICH.derive_product_tags(record.get("products") or [], record.get("title") or "")
         if before != after:
             changed += 1
         record["product_tags"] = after

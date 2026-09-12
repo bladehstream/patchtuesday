@@ -5,7 +5,7 @@
 
 Regression fixture for a real incident on 2026-09-10: an adapter passed no tool
 restrictions, so assessor invocations ran as full agents with the session's MCP
-servers attached and wrote five documents into the user's claude.ai project while
+servers attached and wrote five documents into the user's hosted project while
 being asked to assess advisories.
 
 An assessor needs no tools. It is handed a record on stdin and returns a verdict.
@@ -13,7 +13,7 @@ Anything it can reach beyond that is blast radius, not capability - so this chec
 the restrictions by name rather than trusting that the command "looks sandboxed".
 
 Previously carried as tests/test_assessor_sandbox.py, which nothing in this
-repository ever ran, and which asserted against scripts/run_claude_inference.py -
+repository ever ran, and which asserted against scripts/run_cli_inference.py -
 a module that has never defined SANDBOX_ARGS. So the check had never passed
 either. The constant lives in scripts/score_tags.py; that is what is checked here.
 """

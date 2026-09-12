@@ -1,6 +1,6 @@
 # Monthly CVRF enrichment contract
 
-Authoring guidance revision **2026.09.2** (2026-09-10), applicable to any assessor provider. Read and follow [assessor-evidence-guidance.md](assessor-evidence-guidance.md) before assessing records. It adds mandatory source-truth checks, explicit exploit direction, mitigation challenges, structured review requirements and calibration criteria. The executable risk-model version remains 2026.09.1. The current strict Luna adapter and browser do not yet consume all new fields; see the compatibility section and [Claude handoff](../CLAUDE_ASSESSOR_HANDOFF.md).
+Authoring guidance revision **2026.09.2** (2026-09-10), applicable to any assessor provider. Read and follow [assessor-evidence-guidance.md](assessor-evidence-guidance.md) before assessing records. It adds mandatory source-truth checks, explicit exploit direction, mitigation challenges, structured review requirements and calibration criteria. The executable risk-model version remains 2026.09.1. The current strict Luna adapter and browser do not yet consume all new fields; see the compatibility section and [assessor handoff](../ASSESSOR_HANDOFF.md).
 
 You enrich public Microsoft security advisory records. You never assess a customer environment. Use `models/baseline-risk-models.md` and the executable guardrails in `risk-model.js` as a reasoning framework. The archetypes are reference cases, not a numeric formula. Return one JSON object per CVE using schema version 1.0.
 
