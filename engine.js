@@ -663,7 +663,15 @@ export function monthTotals(records, selectedMitigations = new Set()) {
 // Ordering within each band runs on exploitation evidence, then CVSS, then CVE,
 // so the sequence is stable between renders and identical for two readers
 // looking at the same month.
-export function worstFirst(records, selectedMitigations = new Set(), { minimum = 10, maxTopUp = 10 } = {}) {
+//
+// Eight rather than a round ten because the cards sit four to a row on a wide
+// screen, and ten left a last row of two hanging off an otherwise full grid. It
+// divides evenly into the one, two and four column counts the layout actually
+// reaches; the three-column band between roughly 1300 and 1900px still ends on a
+// short row, which is the price of the count not tracking the viewport - and it
+// should not, because how many advisories are worth reading is not a question
+// about screen widths.
+export function worstFirst(records, selectedMitigations = new Set(), { minimum = 8, maxTopUp = 8 } = {}) {
   const ranked = records
     .map(record => ({ record, profile: predictProfile(record, selectedMitigations) }))
     .filter(item => ACTIONS.indexOf(item.profile.residual.action) >= 2)

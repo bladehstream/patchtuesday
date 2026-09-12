@@ -215,33 +215,34 @@ const expedited = count => Array.from({ length: count }, (_, i) =>
   assert.deepEqual(worst.map(item => item.record.cve), ["CVE-0000-7000", "CVE-0000-8000"], "Scheduled records are excluded and Immediate sorts first");
 }
 
-// Below the minimum, Expedited tops the list up to it.
+// Below the minimum, Expedited tops the list up to it. Eight, not ten, so the
+// list fills the four-column card grid exactly rather than ending on a row of two.
 {
   const worst = worstFirst([...emergencies(5), ...expedited(40)]);
-  assert.equal(worst.length, 10, "five emergencies are topped up to the minimum of ten");
+  assert.equal(worst.length, 8, "five emergencies are topped up to the minimum of eight");
   assert.equal(worst.filter(item => item.profile.residual.action === "Immediate").length, 5);
-  assert.equal(worst.filter(item => item.profile.residual.action === "Out-of-cycle").length, 5, "only enough Expedited to reach the minimum");
+  assert.equal(worst.filter(item => item.profile.residual.action === "Out-of-cycle").length, 3, "only enough Expedited to reach the minimum");
 }
 
 // No emergencies at all still fills to the minimum.
 {
   const worst = worstFirst(expedited(40));
-  assert.equal(worst.length, 10, "the top-up alone reaches the minimum");
+  assert.equal(worst.length, 8, "the top-up alone reaches the minimum");
   assert.ok(worst.every(item => item.profile.residual.action === "Out-of-cycle"));
 }
 
 // At or above the minimum, every Emergency shows and no Expedited is appended.
 {
-  const worst = worstFirst([...emergencies(11), ...expedited(40)]);
-  assert.equal(worst.length, 11, "every Emergency is shown, never truncated");
+  const worst = worstFirst([...emergencies(9), ...expedited(40)]);
+  assert.equal(worst.length, 9, "every Emergency is shown, never truncated");
   assert.ok(worst.every(item => item.profile.residual.action === "Immediate"), "Expedited is dropped once Emergency reaches the minimum");
 }
 
 // Exactly at the minimum is the boundary: still Emergency only.
 {
-  const worst = worstFirst([...emergencies(10), ...expedited(40)]);
-  assert.equal(worst.length, 10);
-  assert.ok(worst.every(item => item.profile.residual.action === "Immediate"), "ten emergencies is already the minimum, so nothing is appended");
+  const worst = worstFirst([...emergencies(8), ...expedited(40)]);
+  assert.equal(worst.length, 8);
+  assert.ok(worst.every(item => item.profile.residual.action === "Immediate"), "eight emergencies already meets the minimum, so nothing is appended");
 }
 
 // Emergency is never truncated even far above the minimum.
