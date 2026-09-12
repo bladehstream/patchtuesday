@@ -20,13 +20,32 @@
   --scheduled-bg: #dff6dd;
   --neutral-bg: #edebe9;
   --radius: 4px;
+  /* Past this width the layout stops stretching and centres instead. An
+     ultrawide monitor otherwise gave twelve tiles and seven cards to a row,
+     which is more columns than anyone scans and leaves the reading line far
+     longer than the text wants. The chrome still spans the full width; only the
+     content inside it is capped. */
+  --content-max: 2200px;
+  --gutter: 24px;
+}
+
+/* Centres content once the viewport exceeds --content-max, without an extra
+   wrapper element, and keeps the ordinary gutter below that. */
+.app-header, .view-tabs, .overview-view, .workspace {
+  padding-inline: max(var(--gutter), calc((100% - var(--content-max)) / 2));
 }
 
 * { box-sizing: border-box; }
 
+/* The view panels carry their own display values, which outrank the user agent's
+   [hidden] rule. Without this the inactive view stays on screen. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
-  min-width: 320px;
+  /* A 320px device reports around 305px of usable width once the scrollbar is
+     taken out, so a 320px floor made the narrowest phones scroll sideways. */
+  min-width: 280px;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--ink);
@@ -45,7 +64,7 @@ button:focus-visible, input:focus-visible, label.button:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 10px 20px;
+  padding-block: 10px;
   background: #242424;
   color: #fff;
   border-bottom: 3px solid var(--accent);
@@ -84,7 +103,7 @@ button:focus-visible, input:focus-visible, label.button:focus-visible {
 
 .workspace {
   display: grid;
-  grid-template-columns: 300px minmax(600px, 1fr) 350px;
+  grid-template-columns: 300px minmax(0, 1fr) 350px;
   min-height: calc(100dvh - 71px);
 }
 
@@ -193,18 +212,30 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 .confidence { color: var(--muted); font-size: 0.78rem; }
 .source-link { color: var(--accent); overflow-wrap: anywhere; }
 
-@media (max-width: 1220px) {
-  .workspace { grid-template-columns: 280px 1fr; }
+@media (max-width: 1340px) {
+  .workspace { grid-template-columns: 280px minmax(0, 1fr); }
   .detail-panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
 }
 
-@media (max-width: 760px) {
+/* The header stops sharing a line well before the workspace collapses: the title,
+   the search and five controls do not fit a tablet, and squeezing them wrapped
+   the product name onto two lines behind the month selector. */
+@media (max-width: 900px) {
   .app-header { align-items: flex-start; flex-direction: column; }
   .header-actions { width: 100%; justify-content: flex-start; }
   .smart-search { width: 100%; max-width: none; margin: 0; }
+
+  /* Six figures on one line stop fitting here. Three then two divides them
+     evenly, so the strip never ends on a half-empty row. */
+  .summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); min-height: 0; }
+  .summary-strip div { min-width: 0; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  .summary-strip div:nth-child(3n) { border-right: 0; }
+  .summary-strip div:nth-last-child(-n+3) { border-bottom: 0; }
+}
+
+@media (max-width: 760px) {
   .workspace { display: block; }
   .filter-panel { border-right: 0; border-bottom: 1px solid var(--line); }
-  .summary-strip { overflow-x: auto; }
   .results-panel { padding: 12px; }
 }
 
@@ -259,6 +290,286 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 .framework-review summary { cursor: pointer; font-size: 0.78rem; color: #555; padding: 6px 0; }
 .framework-review[open] summary { margin-bottom: 6px; }
 
+/* --- Views ---------------------------------------------------------------- */
+
+.view-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.view-tab {
+  padding: 11px 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab:hover { color: var(--ink); }
+.view-tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* --- Overview ------------------------------------------------------------- */
+
+.overview-view { padding-block: 22px 44px; }
+
+.overview-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.overview-head h1 { margin: 0 0 6px; font-size: 1.25rem; letter-spacing: -0.01em; }
+.overview-sub { max-width: 68ch; margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+.overview-mitigations {
+  min-width: min(280px, 100%);
+  margin: 0;
+  padding: 10px 13px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.overview-mitigations legend { padding: 0 4px; color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.board-group { margin-top: 24px; }
+
+.board-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 11px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* Equal-height rows, so a tile carrying an extra note does not leave its
+     neighbours short. The internal rows below keep the parts aligned too. */
+  grid-auto-rows: 1fr;
+  gap: 11px;
+}
+
+/* Colour is carried by the left edge, the pill and a light wash, never by the
+   pill alone - the state is always spelled out in words inside it. */
+.tile {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 9px;
+  padding: 13px 14px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+
+.tile:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); transform: translateY(-1px); }
+.tile:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
+
+.tile-head { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+.tile-label { font-size: 0.95rem; font-weight: 650; line-height: 1.25; }
+
+.tile-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tile-count { color: var(--muted); font-size: 0.82rem; }
+.tile-count strong { color: var(--ink); font-size: 1.02rem; font-weight: 700; }
+
+.tile-foot { display: flex; flex-direction: column; gap: 3px; align-self: end; font-size: 0.76rem; }
+.tile-note { color: #6d4a00; font-weight: 600; }
+.tile-review { color: #754400; font-weight: 600; }
+
+.tile--emergency { border-left-color: var(--critical); background: #fef7f8; }
+.tile--emergency .tile-pill { color: #fff; background: var(--critical); }
+.tile--expedited { border-left-color: #b3720f; background: #fffbf0; }
+.tile--expedited .tile-pill { color: #fff; background: #b3720f; }
+.tile--scheduled { border-left-color: var(--scheduled); background: #f5fbf4; }
+.tile--scheduled .tile-pill { color: #fff; background: var(--scheduled); }
+.tile--no-action { border-left-color: var(--line-strong); background: var(--surface-alt); }
+.tile--no-action .tile-pill { color: #fff; background: #6b6966; }
+
+/* Unverified is deliberately neither green nor a flat grey: an unrated advisory
+   is an open question, and the hatching reads as one where a solid colour would
+   read as another settled answer. */
+.tile--unverified {
+  border-left-color: #8a5300;
+  background: repeating-linear-gradient(135deg, #fffaee, #fffaee 8px, #fdf1d6 8px, #fdf1d6 16px);
+}
+
+.tile--unverified .tile-pill { color: #fff; background: #8a5300; }
+
+.tile--empty { border-left-color: var(--line); background: var(--surface-alt); cursor: default; }
+.tile--empty:hover { box-shadow: none; transform: none; }
+.tile--empty .tile-label { color: var(--muted); }
+.tile--empty .tile-pill { color: var(--muted); background: var(--neutral-bg); }
+
+/* --- Worst first ---------------------------------------------------------- */
+
+.worst-first { margin-top: 34px; }
+.worst-first h2 { margin: 0 0 4px; font-size: 1.05rem; letter-spacing: -0.01em; }
+.worst-first .field-help { margin: 0; }
+
+.worst-first-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.worst-card {
+  display: grid;
+  /* Rows size to their content and the cards stretch to a common height, so the
+     slack collects at the foot of the shorter ones. Pinning the last row to the
+     bottom instead opened a gap in the middle of every card that had less to
+     say than its tallest neighbour. */
+  align-content: start;
+  gap: 9px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 16px 15px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.worst-card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+.worst-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 48%, transparent); outline-offset: 2px; }
+.worst-card--immediate { border-left-color: var(--critical); }
+.worst-card--out-of-cycle { border-left-color: #b3720f; }
+
+.worst-head { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.worst-cve { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.85rem; font-weight: 600; }
+
+.worst-flag {
+  padding: 2px 7px;
+  border: 1px solid #b66b00;
+  border-radius: 999px;
+  color: #754400;
+  background: #fff8e7;
+  font-size: 0.71rem;
+  font-weight: 650;
+}
+
+.worst-flag--kev { border-color: var(--critical); color: var(--critical); background: var(--critical-bg); }
+
+.worst-title { font-size: 0.94rem; font-weight: 600; line-height: 1.35; }
+.worst-summary { color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
+
+.worst-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 7px 16px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--line);
+  align-content: start;
+}
+
+.fact { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.fact-term {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.fact-value { font-size: 0.82rem; overflow-wrap: anywhere; }
+
+.worst-why {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* --- Overview across viewports -------------------------------------------- */
+
+/* Cards stop gaining columns and start gaining width, so a very wide screen
+   gives readable cards rather than more of them. */
+@media (min-width: 1900px) {
+  .worst-first-list { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
+  .tile-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+}
+
+/* Below this the overview header's two halves stop sharing a line. */
+@media (max-width: 1000px) {
+  .overview-head { flex-direction: column; gap: 14px; }
+  .overview-mitigations { width: 100%; }
+  .overview-sub { max-width: none; }
+}
+
+/* One card per row well before the cards themselves get cramped: two 420px
+   columns fit at 900px but leave nothing for the facts grid inside them. */
+@media (max-width: 940px) {
+  .worst-first-list { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  :root { --gutter: 16px; }
+  .overview-view { padding-block: 16px 32px; }
+  .summary-value { font-size: 1.2rem; }
+  .worst-card { padding: 12px 13px 13px; }
+  .worst-facts { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* Phone. Two tiles a row stays scannable; one column of anything else. */
+@media (max-width: 560px) {
+  .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 9px; }
+  .tile { padding: 11px 12px 10px; }
+  .tile-label { font-size: 0.9rem; }
+  .view-tab { padding: 11px 14px; font-size: 0.9rem; }
+  .overview-head h1 { font-size: 1.12rem; }
+  .header-actions { width: 100%; }
+  .header-actions .button, .header-actions .month-select { flex: 1 1 auto; }
+  .summary-strip { grid-template-columns: repeat(2, 1fr); }
+  .summary-strip div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .summary-strip div:nth-child(2n) { border-right: 0; }
+  .summary-strip div:nth-last-child(-n+2) { border-bottom: 0; }
+  .worst-facts { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 380px) {
+  .tile-grid { grid-template-columns: 1fr; }
+  .worst-facts { grid-template-columns: 1fr; }
+}
 .review-context {
   margin: 12px 0;
   padding: 10px 12px;
