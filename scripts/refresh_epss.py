@@ -17,6 +17,7 @@ from typing import Any
 
 DAILY_URL = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
 API_URL = "https://api.first.org/data/v1/epss"
+MANIFEST = "months.json"
 
 
 def fetch(url: str) -> bytes:
@@ -66,6 +67,65 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def is_synthetic(entry: dict[str, Any]) -> bool:
+    """The demo dataset carries invented CVE identifiers, which EPSS cannot score.
+
+    Refreshing it would stamp every synthetic record `pending` and rewrite the file
+    on every run. `synthetic: true` is the declared form; the name checks are the
+    fallback for the entry that predates the flag.
+    """
+    if entry.get("synthetic"):
+        return True
+    return str(entry.get("file", "")).startswith("demo-") or str(entry.get("month", "")).endswith("-demo")
+
+
+def published_datasets(data_dir: Path) -> tuple[list[Path], list[str]]:
+    """Resolve which datasets to refresh from `months.json`, not from a glob.
+
+    `months.json` is what `publish_month.py` writes and what the site reads, so it
+    is the one authoritative list of published datasets. Discovering files any
+    other way - a glob, or a list enumerated somewhere else - means two sources of
+    truth that agree today and diverge the first time the cadence changes. The
+    project is moving to twice-monthly releases with non-Microsoft vendors, so
+    "which files exist" and "which releases are published" stop being the same
+    question.
+
+    Returns the paths to refresh and any warnings about disagreement between the
+    manifest and the directory. Disagreement is reported rather than silently
+    resolved in either direction: a file on disk that no manifest entry names is
+    either an unpublished draft or a manifest that was never updated, and both are
+    things an operator needs to see.
+    """
+    manifest_path = data_dir / MANIFEST
+    if not manifest_path.exists():
+        raise SystemExit(f"{manifest_path} is missing; cannot determine which datasets are published")
+
+    entries = json.loads(manifest_path.read_text(encoding="utf-8"))
+    warnings: list[str] = []
+    paths: list[Path] = []
+    named = set()
+
+    for entry in entries:
+        filename = entry.get("file")
+        if not filename:
+            warnings.append(f"manifest entry {entry.get('month', '?')!r} names no file; skipped")
+            continue
+        named.add(filename)
+        if is_synthetic(entry):
+            continue
+        path = data_dir / filename
+        if not path.exists():
+            warnings.append(f"manifest names {filename}, which is not in {data_dir}; skipped")
+            continue
+        paths.append(path)
+
+    for path in sorted(data_dir.glob("*.jsonl")):
+        if path.name not in named:
+            warnings.append(f"{path.name} is present in {data_dir} but no {MANIFEST} entry names it; not refreshed")
+
+    return paths, warnings
+
+
 def refresh_records(records: list[dict[str, Any]], scores: dict[str, dict[str, Any]], feed_date: str | None) -> int:
     changed = 0
     for record in records:
@@ -98,7 +158,14 @@ def main() -> None:
     parser.add_argument("--skip-api", action="store_true")
     args = parser.parse_args()
 
-    files = args.file or sorted(path for path in args.data_dir.glob("*.jsonl") if not path.name.startswith("demo-"))
+    if args.file:
+        files = args.file
+    else:
+        files, warnings = published_datasets(args.data_dir)
+        for warning in warnings:
+            print(f"WARNING: {warning}")
+        if not files:
+            raise SystemExit(f"No published datasets listed in {args.data_dir / MANIFEST}")
     records_by_file = {path: read_jsonl(path) for path in files}
     target_cves = sorted({record["cve"] for records in records_by_file.values() for record in records})
 

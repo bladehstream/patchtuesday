@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Validate a manual inference overlay and merge it onto programmatic source facts."""
+"""Validate a manual inference overlay and merge it onto programmatic source facts.
+
+Gates run per record, in order: cvss_basis fidelity, framework assessment, tag
+vocabulary, per-candidate credit rules, path compatibility, and last the
+attack-direction gate (`enforce_direction`). The direction gate runs last so the
+model's claims are validated as authored before any credit is zeroed.
+
+The direction gate does not fail a record. It removes credit a control cannot
+possibly have earned in the asserted direction, marks the control
+`direction_override: true`, and reports the contradiction - on the record as
+`inference.direction_gate` and in this script's stdout summary. An overlay that
+asserts no direction at all is rejected, because there is then nothing to check any
+control against; `--allow-missing-direction` downgrades that to a recorded
+UNCHECKED state for legacy overlays, and is never a clean result.
+"""
 
 from __future__ import annotations
 
@@ -101,31 +115,18 @@ def enforce_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> l
     return violations
 
 
-def check_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> None:
-    """Reject likelihood credit for a control that cannot act in this direction.
-
-    CVE-2026-18149 is why this exists. Undici's flaw is a malicious SERVER
-    attacking an HTTP CLIENT - the traffic is outbound. Both the previous assessor
-    and a fresh Haiku run credited "remove external exposure" against it, reasoning
-    that closing public ingress reduces reachability. It does not: nothing is
-    connecting in. A CVSS-vector compatibility check cannot catch this, because
-    AV:N is satisfied either way. Only direction can.
-    """
-    path_info = overlay.get("attack_path") or {}
-    direction = path_info.get("direction")
-    if direction not in ATTACK_DIRECTIONS:
-        raise ValueError(f"{cve}: attack_path.direction must be one of {ATTACK_DIRECTIONS}, got {direction!r}")
-    for candidate in overlay.get("mitigation_candidates") or []:
-        effect = candidate.get("effect") or {}
-        credited = (effect.get("likelihood_steps") or 0) > 0 or effect.get("path_block")
-        if not credited:
-            continue
-        allowed = rules.get(candidate.get("id"), list(ATTACK_DIRECTIONS))
-        if direction not in allowed:
-            raise ValueError(
-                f"{cve}: {candidate['id']} credited against an {direction} attack path, "
-                f"but it only acts on {allowed}. Evidence given: {candidate.get('evidence', '')[:160]}"
-            )
+# `check_direction` used to live here: the same rule, but raising on the first
+# contradicting credit and so discarding the whole assessment over one bad control.
+# Removed 2026-09-11 in favour of `enforce_direction` above, for three reasons.
+# First, the 2026-09-10 granularity decision: an assessment's direction, impact,
+# factors and remaining controls may be sound, and throwing them away buys nothing
+# the conservative action does not already buy - removing the unsupported discount
+# leaves the record with LESS credit than the model claimed, which is the safe side.
+# Second, raising on one record aborts the merge of the whole month, so in practice
+# the gate would have been disabled rather than fixed. Third, two implementations of
+# one rule is what let the rule sit uncalled: `direction_gate_self_test.py` exercised
+# `enforce_direction`, the runbook described `check_direction`, and neither was wired
+# into `main()`. One gate, one call site, one test. Do not reintroduce the variant.
 
 
 def allowed_tags(path: Path) -> set[str]:
@@ -284,13 +285,24 @@ def main() -> None:
     parser.add_argument("--mitigations", type=Path, default=ROOT / "data" / "mitigation-catalog.json")
     parser.add_argument("--include-unreviewed", action="store_true", help="Include every baseline record, not only inference overlays")
     parser.add_argument("--require-complete", action="store_true", help="Reject a release unless every source CVE has an inference overlay")
+    parser.add_argument(
+        "--allow-missing-direction", action="store_true",
+        help=("Record an overlay with no attack_path.direction as direction-UNCHECKED "
+              "instead of rejecting it. Only for legacy overlays written before the "
+              "direction contract existed (the 2026-Sep Luna overlay is the whole of "
+              "that set). The gate cannot run on such a record, so its mitigation "
+              "credit is unverified and every record says so in its own inference block."),
+    )
     args = parser.parse_args()
 
     baseline = {item["cve"]: item for item in read_jsonl(args.baseline)}
     tags_allowed = allowed_tags(args.taxonomy)
     mitigations_allowed = allowed_mitigations(args.mitigations)
+    direction_applicability = direction_rules(args.mitigations)
     merged = []
     seen = set()
+    direction_violations: list[dict] = []
+    direction_unchecked: list[dict] = []
     for overlay in read_jsonl(args.inference):
         cve = overlay.get("cve")
         if cve not in baseline:
@@ -308,12 +320,47 @@ def main() -> None:
         for candidate in candidates:
             validate_candidate(candidate, mitigations_allowed, cve)
         validate_path_compatibility(overlay, baseline[cve])
+
+        # The attack-direction gate. Runs LAST of the per-record checks, so the
+        # model's claims are validated exactly as authored before anything is
+        # zeroed - otherwise enforce_direction would sand off a credit that
+        # validate_candidate should have rejected outright and the weaker gate
+        # would mask the stronger one.
+        #
+        # This is the call site the CVE-2026-18149 class of error gets past when it
+        # is absent. `enforce_direction` was defined, tested and never called from
+        # here until 2026-09-11; `scripts/direction_gate_self_test.py` now has a
+        # fixture that fails if these lines are removed.
+        gate: dict
+        try:
+            violations = enforce_direction(cve, overlay, direction_applicability)
+        except ValueError as error:
+            if not args.allow_missing_direction:
+                raise
+            # Not "clean". Unchecked: there is no direction, so no control credit on
+            # this record has been tested against one. Recorded on the record and
+            # counted separately in the summary, never folded into the pass count.
+            violations = []
+            gate = {"status": "unchecked", "reason": str(error)}
+            direction_unchecked.append({"cve": cve, "reason": str(error)})
+        else:
+            gate = {"status": "violations-found" if violations else "clean",
+                    "violations": violations}
+            if violations:
+                direction_violations.append({"cve": cve, "violations": violations})
+
+        # `candidates` is the same list enforce_direction just mutated in place, so
+        # any zeroed credit and any direction_override flag is already on it.
         record = baseline[cve]
         record["tags"] = sorted(set(record.get("tags") or []) | inferred_tags)
         record["mitigation_candidates"] = candidates
         record["inference"] = overlay.get("inference") or {}
         record["inference"]["review_status"] = "reviewed"
         record["inference"]["framework_assessment"] = overlay["framework_assessment"]
+        # Written on every merged record, including the clean ones. A field that
+        # appears only on violations cannot be distinguished from a gate that never
+        # ran - which is the state this whole change is fixing.
+        record["inference"]["direction_gate"] = gate
         merged.append(record)
 
     if args.require_complete and seen != set(baseline):
@@ -329,19 +376,46 @@ def main() -> None:
                 "model": "none",
                 "taxonomy_version": "1.0",
                 "review_status": "unreviewed",
+                # No overlay means no asserted direction and no credited control, so
+                # there is nothing for the gate to act on. Stated, not left blank.
+                "direction_gate": {"status": "not-applicable",
+                                   "reason": "record carries no inference overlay"},
             }
             merged.append(record)
 
-    severity_order = {"Critical": 0, "Important": 1, "Moderate": 2, "Low": 3}
+    # Publication order. `Unknown` sorts to the BOTTOM of the list - owner decision,
+    # 2026-09-11 - and is named here rather than left to the fall-through, so the
+    # decision is visible in the map and reviewable. The default is deliberately a
+    # value no severity is meant to reach: a severity string that is not in this map
+    # is an unhandled vocabulary change, and it must land after Unknown and be added
+    # here on purpose rather than quietly inheriting Unknown's rank.
+    severity_order = {"Critical": 0, "Important": 1, "Moderate": 2, "Low": 3, "Unknown": 4}
     merged.sort(key=lambda item: (
         not (item.get("threat", {}).get("kev") or item.get("threat", {}).get("exploitation_detected")),
-        severity_order.get(item.get("severity"), 9),
+        severity_order.get(item.get("severity"), 99),
         item.get("attack", {}).get("vector") != "network",
         item.get("cve"),
     ))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(json.dumps(item, separators=(",", ":")) for item in merged) + "\n", encoding="utf-8")
     print(f"Validated {len(seen)} inference overlays; published {len(merged)} total records into {args.output}")
+
+    # The gate's findings go to stdout as well as onto the records. A violation that
+    # is only in the output file is one nobody reads on the day it is produced.
+    credits_removed = sum(len(item["violations"]) for item in direction_violations)
+    print(f"Direction gate: {len(seen) - len(direction_unchecked)}/{len(seen)} overlays checked; "
+          f"{len(direction_violations)} record(s) with contradicting mitigation credit, "
+          f"{credits_removed} credit(s) removed; {len(direction_unchecked)} unchecked")
+    for item in direction_violations:
+        for violation in item["violations"]:
+            print(f"  direction-contradiction {item['cve']}: {violation['message']}")
+    if direction_unchecked:
+        print(f"  UNCHECKED: {len(direction_unchecked)} overlay(s) assert no attack direction, so no "
+              "mitigation credit on them has been tested against one. Not a clean result.")
+        for item in direction_unchecked[:10]:
+            print(f"    {item['reason']}")
+        if len(direction_unchecked) > 10:
+            print(f"    ... and {len(direction_unchecked) - 10} more")
 
 
 if __name__ == "__main__":

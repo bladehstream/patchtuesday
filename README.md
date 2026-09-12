@@ -90,15 +90,26 @@ The interface and exported assessment profiles use **Emergency**, **Expedited**,
 ## Tests
 
 ```powershell
-node tests/engine.test.mjs
-node tests/september_record.test.mjs
-node tests/ui_performance.test.mjs
-node tests/coverage.test.mjs
-node tests/priorities-review.test.mjs
-node scripts/audit-mitigations.mjs
-python tests/test_enrich_cvrf.py
-python tests/test_merge_inference.py
-python tests/test_refresh_epss.py
+npm test
 ```
+
+`npm test` runs the node suite and `scripts/audit-mitigations.mjs`. It is node only,
+deliberately — the project has no python test dependency and the python checks are run
+as separate commands when the pipeline stage they cover is in play:
+
+```powershell
+python3 tests/test_enrich_cvrf.py
+python3 tests/test_merge_inference.py
+python3 tests/test_refresh_epss.py
+python3 scripts/direction_gate_self_test.py
+python3 scripts/tag_validators_self_test.py
+python3 scripts/span_verify_self_test.py
+python3 scripts/assessor_sandbox_self_test.py
+python3 scripts/inference_sandbox_self_test.py
+python3 scripts/collect_claude_self_test.py
+```
+
+`scripts/scorer_self_test.py` also exists but invokes the Claude CLI, so it is run when
+the scorer changes rather than routinely. See `docs/MONTHLY-RUNBOOK.md` step 10.
 
 The demonstration JSONL contains synthetic records and must not be treated as Microsoft advisory data.

@@ -1,4 +1,5 @@
-## Cycle 4 — 2026-09-11, full dev set, sandboxed assessor
+## Cycle 4 — 2026-09-11, full dev set, sandbox believed applied
+<!-- Retitled 2026-09-11: the assessor was NOT sandboxed. See the correction below. -->
 
 ### Incident: the assessor had tools and used them
 
@@ -23,6 +24,30 @@ braces deliberately: a denylist alone lets new tools through, an allowlist alone
 tested ambiguously. Verified by canary — instructed explicitly to write
 `/tmp/canary.txt`, the sandboxed assessor cannot, and the file does not appear.
 Three fixtures in `tests/test_assessor_sandbox.py`.
+
+> **Correction, 2026-09-11.** The two paragraphs above were wrong when written and
+> are left in place because the rest of this log reasons from them. `SANDBOX_ARGS`
+> landed in `scripts/score_tags.py` only. `scripts/run_claude_inference.py` — the
+> adapter this section is about — was never changed: it built its CLI command with
+> no `--strict-mcp-config`, no `--allowedTools`, no `--disallowedTools` and no
+> `--mcp-config` until 2026-09-11. `tests/test_assessor_sandbox.py` asserted against
+> `run_claude_inference.SANDBOX_ARGS`, a name that did not exist, and nothing in the
+> repository ran it, so the three fixtures had never passed either.
+>
+> The canary proved less than it was read as proving. It probed local `Write` and
+> `Bash` and found them denied; MCP was still attached, and the next cycle wrote six
+> more documents into the user's claude.ai project — eleven in total. A canary can
+> only demonstrate the absence of the one capability it probes. It cannot
+> demonstrate that any restriction reached the command line.
+>
+> **Therefore the cycle 3 vs cycle 4 comparison below is not a sandboxed-vs-tooled
+> comparison.** Both arms of cycle 4 ran with tools and with MCP attached, exactly
+> as cycle 3 did. Whatever moved tag density from 1.70 to 2.92 per record, it was
+> not the sandbox, because the sandbox was not applied. The "harness lesson" drawn
+> from it — give an assessor only what the assessment needs — may still be right,
+> but this run is not evidence for it. It needs re-running now that
+> `run_claude_inference.py` is genuinely sandboxed
+> (`python3 scripts/inference_sandbox_self_test.py`).
 
 ### The finding: tools made the assessor worse
 

@@ -15,7 +15,10 @@ whatever it is shown:
 
 Every verdict must quote a span FROM THE SUPPLIED RECORD. A verdict with no
 quotable span is recorded as a scorer failure, not as a finding: that is what
-stops the scorer reasoning from world knowledge instead of the advisory.
+stops the scorer reasoning from world knowledge instead of the advisory. That
+holds for `unsupported` as much as for `supported` - see the note in score_one.
+`source-ambiguous` is the one verdict the contract lets the scorer return
+unspanned, because "nothing in the record bears on this" has nothing to quote.
 
 The scorer is itself validated before use - see tests/test_scorer_fixture.py and
 the --self-test mode, which plants known-bad and known-good tags and fails if the
@@ -145,8 +148,23 @@ def score_one(cli: str, model: str, record: dict, tag: str, evidence: str,
             return result
         result.update(payload)
         # A verdict with no quotable span is a scorer failure, not a finding.
+        #
+        # `unsupported` used to be exempt, and the exemption was not neutral. An
+        # unspanned `unsupported` passed here silently and was then dropped
+        # downstream by citation verification, which has nothing to verify. That
+        # deletion is biased by construction: a rejection whose whole argument is
+        # "the record never uses the word X" is exactly the rejection with no span
+        # to cite, so the rows removed were disproportionately rejections. On the
+        # 2026-09 workload tags it removed 11 of 179 rows - 8 unsupported, 3
+        # supported - and reported 25/168 = 14.9% rejection where the measured rate
+        # was 33/179 = 18.4%.
+        #
+        # The contract offers exactly one way to return no span: rule
+        # `source-ambiguous`. Every other verdict must quote the record, so every
+        # other unspanned verdict is a scorer failure - counted, and re-scored -
+        # rather than a row that disappears from the denominator.
         span = (payload.get("source_span") or "").strip()
-        if payload.get("verdict") in {"supported", "contradicted"} and not span:
+        if payload.get("verdict") != "source-ambiguous" and not span:
             result["scorer_failure"] = "verdict asserted without a source span"
         else:
             # Compare with whitespace collapsed. The scorer quotes JSON with its own
@@ -214,9 +232,15 @@ def main() -> None:
                               "scorer_failure": res.get("scorer_failure")}), flush=True)
 
     from collections import Counter
+    unspanned = [r for r in results if not (r.get("source_span") or "").strip()]
     print(json.dumps({"shard": args.shard, "scored": len(results),
                       "verdicts": dict(Counter(r.get("verdict") for r in results)),
-                      "scorer_failures": sum(1 for r in results if r.get("scorer_failure"))}, indent=2))
+                      "scorer_failures": sum(1 for r in results if r.get("scorer_failure")),
+                      # Reported next to the verdicts on purpose: these are the rows a
+                      # citation filter has nothing to verify and will drop, and they are
+                      # not a random sample of the verdicts.
+                      "unspanned_by_verdict": dict(Counter(r.get("verdict") for r in unspanned))},
+                     indent=2))
 
 
 if __name__ == "__main__":

@@ -15,7 +15,10 @@ def main():
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     manifest = json.loads((args.run_dir/"manifest.json").read_text(encoding="utf-8"))
-    baseline_path = ROOT/"data/2026-Sep.jsonl"
+    # The month is carried by the run manifest, so a collect can never be pointed at
+    # a different month than the one that was sharded. Older run dirs predate the
+    # field and fall back to the month they were built from.
+    baseline_path = ROOT / manifest.get("source_file", "data/2026-Sep.jsonl")
     if hashlib.sha256(baseline_path.read_bytes()).hexdigest() != manifest["source_sha256"]:
         raise ValueError("Source snapshot changed during inference; reconcile before collecting")
     baseline = {r["cve"]:r for r in validation.read_jsonl(baseline_path)}

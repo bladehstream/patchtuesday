@@ -125,7 +125,7 @@ it is the artefact that documents the defect.
 
 ### Acceptance criteria — Phase 0
 
-1. `python -m pytest tests/test_enrich_cvrf.py` passes with new cases: missing
+1. `python3 tests/test_enrich_cvrf.py` passes with new cases: missing
    severity + missing score → `Unknown`; missing score + vendor text "Important"
    → `Important`; both present → unchanged.
 2. Zero records in `data/2026-Sep.jsonl` have `severity == "Low"` while
@@ -563,7 +563,9 @@ The goal is complete when **all** of the following hold:
 
 1. Every Phase 0 and Phase 1 acceptance criterion passes, except 1.7, which is
    handed back per section 6.
-2. `npm test` and `python -m pytest tests/` both pass.
+2. `npm test` passes, and so does each python check listed in
+   `docs/MONTHLY-RUNBOOK.md` step 10. There is no pytest and no test dependency:
+   `npm test` is node only and the python checks are run as individual commands.
 3. `npm run build` succeeds.
 4. The working tree is clean and every change is committed.
 5. The regression diff report exists and contains no unexplained rating changes.
