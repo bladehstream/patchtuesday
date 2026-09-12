@@ -146,6 +146,24 @@ export function cveProgramUrl(cve) {
   return `https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/${year}/${bucket}/CVE-${year}-${serial}.json`;
 }
 
+// CISA's Vulnrichment programme adds SSVC decision points to CVEs their assigning CNA
+// left under-enriched. Coverage on 2026-Sep is 1081 of 1185 records, 91.2%.
+//
+// This is CISA's judgement, not the vendor's, so it is read here as evidence for a
+// reviewer and never as a rating. Nothing in this file lets it move a likelihood or an
+// action - KEV does that, because a KEV listing is a fact rather than an assessment.
+//
+// Exploitation "none" means, quoting the specification, "There is no evidence of active
+// exploitation and no public proof of concept", and "The intent is not to predict
+// future exploitation but only to acknowledge the current state of affairs." It is an
+// evidentiary status. It maps to unknown, never to unlikely, which would suppress
+// likelihood by one step across the 1055 records carrying it.
+export function ssvc(record) {
+  const block = record.cve_program;
+  if (!block || block.status !== "found" || !block.ssvc) return null;
+  return block.ssvc;
+}
+
 export function reviewStatus(record) {
   const reasons = [];
   const add = (code, message, evidence = "") => reasons.push({ code, message, evidence });
@@ -223,6 +241,33 @@ export function reviewStatus(record) {
     add("incomplete-prerequisites", "Confirm the missing CVSS or exploit-prerequisite details.");
   }
   if (record.threat?.epss_status === "stale") add("stale-threat-data", "Refresh the stale threat data before relying on the assessment.");
+  const decision = ssvc(record);
+  if (decision) {
+    const exploitation = decision.exploitation;
+    // Only the non-default values are worth a reviewer's attention. On 2026-Sep the two
+    // "active" records were already in KEV and already flagged, so the 24 that this
+    // actually surfaces are all "poc": a public proof of concept exists while KEV, the
+    // vendor assessment and EPSS all say nothing is known.
+    if ((exploitation === "poc" || exploitation === "active") && !record.threat?.kev && !record.threat?.exploitation_detected) {
+      add(
+        "public-exploit-evidence",
+        exploitation === "active"
+          ? "CISA records this as actively exploited, and neither KEV nor the vendor says so here. Confirm before scheduling."
+          : "A public proof of concept exists for this CVE, which no other signal in this record reflects. Confirm before scheduling.",
+        `CISA-ADP SSVC Exploitation: ${exploitation}. Automatable: ${decision.automatable ?? "unstated"}. Technical Impact: ${decision.technical_impact ?? "unstated"}.`,
+      );
+    }
+    if (decision.automatable === "yes") {
+      note("automatable", "CISA assesses the exploitation steps for this CVE as automatable, so it is a candidate for mass exploitation rather than targeted use.", "CISA-ADP SSVC Automatable: yes");
+    }
+    // Where the vendor published no severity at all, SSVC Technical Impact is the only
+    // impact signal on the record. Everywhere else it largely restates the severity.
+    if (record.severity === "Unknown" && decision.technical_impact) {
+      note("ssvc-technical-impact", `No vendor severity exists, but CISA assesses the technical impact as ${decision.technical_impact}.`, `CISA-ADP SSVC Technical Impact: ${decision.technical_impact}`);
+    }
+  } else if (record.cve_program) {
+    note("ssvc-absent", "No CISA exploitation assessment is available for this CVE, so its exploitation status is unknown rather than quiet.", record.cve_program.ssvc_absent_reason || record.cve_program.status || "");
+  }
   return { required: reasons.some(reason => !reason.informational), reasons };
 }
 

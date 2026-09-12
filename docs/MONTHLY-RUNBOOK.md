@@ -51,6 +51,18 @@ Sanity check before going further. A month that looks wrong here is a parser pro
 
 ---
 
+## 2b. Fetch the CVE Program enrichment
+
+    python3 scripts/fetch_cve_enrichment.py --records work/2026-Oct-baseline.jsonl --output work/2026-Oct-enrichment.jsonl --cache-dir raw/cvelist
+
+    python3 scripts/apply_cve_enrichment.py --published work/2026-Oct-baseline.jsonl --enrichment work/2026-Oct-enrichment.jsonl --output work/2026-Oct-baseline-enriched.jsonl
+
+Static JSON per CVE from the CVE Program, no key and no rate limit; a full month takes about 25 seconds cold and is instant from the cache. This adds the assigning CNA and the CISA-ADP SSVC decision points as a `cve_program` block. Coverage on 2026-Sep was 1081 of 1185 records; anything much below that means the fetch degraded and should be re-run rather than published.
+
+SSVC is CISA's judgement, not the vendor's. It never reaches `severity`, `cvss`, `threat` or the risk model - `scripts/apply_cve_enrichment.py` refuses to write if it touched any of them, and `tests/ssvc.test.mjs` asserts the deterministic floor is unmoved by either the quietest or the loudest SSVC value. Use the enriched file for every later step.
+
+---
+
 ## 3. Split for concurrency (≈1 min)
 
 `run_cli_inference.py` batches internally and runs its batches sequentially, so a whole month in one process takes hours. Split it and run the shards side by side:
