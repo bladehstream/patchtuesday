@@ -221,6 +221,7 @@ This ran unattended as `.github/workflows/refresh-epss.yml` until 2026-09-11, wh
     python3 scripts/inference_sandbox_self_test.py  # the adapter has no tools, no MCP — both arms
     python3 scripts/collect_cli_self_test.py  # collector gates (step 5)
     python3 scripts/build_harness_sets_self_test.py  # the unknown-severity stratum stays reachable
+    python3 scripts/apply_severity_correction_self_test.py  # the superseded Phase 0 script refuses to run
 
 `scripts/scorer_self_test.py` is the exception: it invokes the assessor CLI and costs money, so run it when the scorer or its prompt changes, not every cycle.
 

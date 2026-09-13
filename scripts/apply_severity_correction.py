@@ -12,7 +12,26 @@ retained as evidence per ASSESSOR_HANDOFF.md. Records whose severity
 becomes Unknown are surfaced by the computed review flag in engine.js, not by
 rewriting the prior model output.
 
-Usage:
+**Superseded. Phase 0 is complete and every published month is schema 2.0.**
+
+This script predates the vendor-plural severity schema. It copies a flat severity
+string and a `severity_basis` from a baseline onto a published record, which was
+correct when `severity` was a string. It is not correct now: a published record
+carries a severity object whose band may come from a vendor other than Microsoft,
+and overwriting that object with a string erases the assigning CNA's rating and
+resolves the whole month to `unknown` through the band reader - the exact fail-open
+this script was written to repair, reintroduced in a new shape. There is no legacy
+dataset left for it to be right about.
+
+The replacement is `scripts/normalize_severity.py`. It re-derives severity from the
+source facts rather than copying a previous output, so running it twice cannot
+compound an error, and it prints every band and every action that moved.
+
+Kept rather than deleted so the Phase 0 remediation stays readable in the history.
+It now refuses to run against anything it would damage and says what to run
+instead. Those shape checks are the whole of its remaining value.
+
+Usage (legacy flat-severity datasets only):
   python scripts/apply_severity_correction.py \
       --published data/2026-Sep.jsonl \
       --baseline work/phase0/baseline.jsonl \
@@ -26,9 +45,65 @@ import json
 from pathlib import Path
 
 
+REPLACEMENT = "python3 scripts/normalize_severity.py --published <file> --output <file>"
+
+
 def read_jsonl(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def severity_shape(records: list[dict], label: str) -> str:
+    """Classify a dataset as flat or vendor-plural, and refuse a mixed one.
+
+    A mixed file is a half-finished migration. Guessing which half is authoritative
+    is how a dataset ends up internally inconsistent with nothing reporting it, so
+    this halts instead.
+    """
+    shapes = {"vendor-plural" if isinstance(record.get("severity"), dict) else "flat" for record in records}
+    if not shapes:
+        raise SystemExit(f"{label} contains no records")
+    if len(shapes) > 1:
+        objects = [record["cve"] for record in records if isinstance(record.get("severity"), dict)]
+        raise SystemExit(
+            f"{label} mixes both severity schemas: {len(objects)} of {len(records)} records carry a severity "
+            f"object and the rest carry a string. That is a half-finished migration, not an input. "
+            f"Complete it first: {REPLACEMENT}"
+        )
+    return shapes.pop()
+
+
+def refuse_unless_legacy(published: list[dict], baseline: list[dict]) -> None:
+    """Halt before writing anything this script cannot represent.
+
+    Checked before the first write rather than per record, because a partially
+    rewritten published month is worse than one not rewritten at all.
+    """
+    published_shape = severity_shape(published, "--published")
+    baseline_shape = severity_shape(baseline, "--baseline")
+    versions = sorted({str(record["schema_version"]) for record in published if record.get("schema_version")})
+
+    if published_shape == "vendor-plural":
+        raise SystemExit(
+            "--published carries vendor-plural severity objects"
+            + (f" (schema_version {'/'.join(versions)})" if versions else "")
+            + ", which this script cannot write. Copying a flat string over them would erase every "
+            "assigning CNA's own band and leave the month reading as unknown - the fail-open this "
+            f"script exists to repair. Use: {REPLACEMENT}"
+        )
+    if baseline_shape == "vendor-plural":
+        raise SystemExit(
+            "--baseline carries vendor-plural severity objects but --published is flat. This script "
+            "would flatten them on the way across, discarding every non-publisher band. Migrate the "
+            f"published file instead: {REPLACEMENT}"
+        )
+
+    without_basis = [record["cve"] for record in baseline if "severity_basis" not in record]
+    if without_basis:
+        raise SystemExit(
+            f"{len(without_basis)} baseline records carry no severity_basis, so what a band was derived "
+            f"from cannot be carried across: {', '.join(without_basis[:10])}"
+        )
 
 
 def main() -> None:
@@ -40,6 +115,8 @@ def main() -> None:
 
     published = read_jsonl(args.published)
     baseline = {record["cve"]: record for record in read_jsonl(args.baseline)}
+
+    refuse_unless_legacy(published, list(baseline.values()))
 
     missing = [record["cve"] for record in published if record["cve"] not in baseline]
     if missing:
