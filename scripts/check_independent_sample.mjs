@@ -22,8 +22,15 @@ for (const cve of ids) {
   const scores = v.CVSSScoreSets || [];
   assert.ok(r.cvss.vector ? scores.some(s => s.Vector === r.cvss.vector && s.BaseScore === r.cvss.base_score) : scores.length === 0, cve);
   const severity = [...new Set((v.Threats || []).filter(t => t.Type === 3).map(t => t.Description?.Value).filter(Boolean))];
+  // `severity` is an object since the vendor-plural migration, so the raw MSRC
+  // string lives on the publisher assessment. Comparing the object would be a
+  // gate that can never pass, which is the mirror of one that can never fail.
+  const publisher = (r.severity?.assessments || []).find(a => a.role === "publisher");
   if (!severity.length) missingSeverity.push(cve);
-  else assert.ok(severity.includes(r.severity), cve);
+  else {
+    assert.ok(publisher, `${cve}: MSRC published a severity but the record carries no publisher assessment`);
+    assert.ok(severity.includes(publisher.value), cve);
+  }
   const text = (v.Threats || []).filter(t => t.Type === 1).map(t => t.Description?.Value || "").join(" ");
   const expected = /Exploited:Yes|Exploitation detected/i.test(text) ? "detected" : /Exploitation More Likely/i.test(text) ? "more-likely" : /Exploitation Less Likely/i.test(text) ? "less-likely" : /Exploitation Unlikely/i.test(text) ? "unlikely" : "unknown";
   assert.equal(r.threat.exploitation_assessment, expected, cve);

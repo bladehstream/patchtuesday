@@ -133,6 +133,8 @@ A Microsoft Critical is more often CVSS High than CVSS Critical. Microsoft state
 
 Measured cost on 2026-Sep, which is smaller than I first said: all five disagreements move from `medium` to `high` or `critical`, but **only one changes its action**. CVE-2026-80726 goes Scheduled to Out-of-cycle, because Linux rates it CRITICAL 9.3 against Microsoft's Moderate. The other four land on `high`, which does not raise the action floor on its own without elevated exploitation likelihood. I had said all five would move off Scheduled; that was wrong, and the distinction matters because the real change to what administrators are told is one record, not five.
 
+That figure is the cost of **this rule alone**. The migration as a whole moves two records, because the second is not a disagreement: CVE-2026-84353 goes Scheduled to Expedited because Microsoft declined to rate it and Chrome's Critical became readable for the first time. Anyone quoting "one record" as the migration total is quoting the divergence rule's cost, not the migration's.
+
 ## Migration
 
 - `schema_version` bumps. `month` should become `cycle` plus `published_at` in the same bump rather than in a second migration; see TODO item 4.

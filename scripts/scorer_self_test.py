@@ -16,24 +16,50 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import score_tags  # noqa: E402
+from severity import build_severity, load_scales  # noqa: E402
+
+# Fixtures are built through the real resolver rather than hand-written, so they
+# cannot drift from the shape a record actually carries. `severity` became an
+# object in the vendor-plural migration; a hand-written string here would have
+# gone on passing while showing the scorer something no record looks like.
+SCALES = load_scales(Path(__file__).resolve().parent.parent / "data" / "severity-scales.json")
+
+
+def msrc(band: str, score: float | None, vector: str | None) -> dict:
+    cvss = {"base_score": score, "version": "3.1", "vector": vector} if score is not None else None
+    return build_severity(SCALES, severity=band, severity_basis="vendor", cvss=cvss, cve_program=None)
+
+
+def chromium(band: str) -> dict:
+    return build_severity(
+        SCALES,
+        severity="Unknown",
+        severity_basis="absent",
+        cvss=None,
+        cve_program={
+            "assigner": "Chrome",
+            "url": "https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/2026/84xxx/CVE-2026-84350.json",
+            "vendor_severity": {"band": band, "scale": "chromium"},
+        },
+    )
 
 DNS = {"cve": "CVE-FIXTURE-1", "title": "Windows DNS Server Remote Code Execution Vulnerability",
        "products": [{"name": "Windows Server 2025"}],
        "cvss": {"base_score": 8.1, "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"},
        "attack": {"vector": "network", "privileges_required": "none", "user_interaction": "none"},
-       "severity": "Critical"}
+       "severity": msrc("Critical", 8.1, "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H")}
 
 EXCEL = {"cve": "CVE-FIXTURE-2", "title": "Microsoft Excel Remote Code Execution Vulnerability",
          "products": [{"name": "Microsoft Office LTSC 2024"}],
          "cvss": {"base_score": 7.8, "vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"},
          "attack": {"vector": "local", "privileges_required": "none", "user_interaction": "required"},
-         "severity": "Important"}
+         "severity": msrc("Important", 7.8, "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H")}
 
 CHROMIUM = {"cve": "CVE-FIXTURE-3", "title": "Chromium: CVE-2026-84350 Use after free in TabStrip",
             "products": [{"name": "Microsoft Edge (Chromium-based)"}],
             "cvss": {"base_score": None, "vector": None},
             "attack": {"vector": "unknown", "privileges_required": "unknown", "user_interaction": "unknown"},
-            "severity": "Unknown"}
+            "severity": chromium("Medium")}
 
 # (label, record, tag, evidence, expectation)
 #   expectation "good" -> must not be unsupported/contradicted

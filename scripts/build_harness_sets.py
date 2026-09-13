@@ -15,7 +15,12 @@ import argparse
 import hashlib
 import json
 import random
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from severity import UNKNOWN, normalized_band  # noqa: E402
 
 IMPACT_TAGS = {
     "remote-code-execution", "elevation-of-privilege", "security-feature-bypass",
@@ -52,7 +57,12 @@ def strata_of(record: dict, flagged: set[str]) -> str | None:
 
     if cve in NAMED_HARD or cve in flagged:
         return "reference-failure"
-    if record.get("severity") == "Unknown":
+    # Read through the fail-loud reader rather than comparing the field. Since the
+    # vendor-plural migration `severity` is an object, and `== "Unknown"` here was
+    # silently false for every record, which emptied this stratum without failing.
+    # The reader also treats an unmigrated flat string as unknown, so a dataset that
+    # skipped the migration lands in this stratum instead of passing as rated.
+    if normalized_band(record.get("severity")) == UNKNOWN:
         return "unknown-severity"
     if (
         isinstance(score, (int, float)) and score >= 9
