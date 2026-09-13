@@ -16,7 +16,20 @@ const records = fs.readFileSync(path.join(root, "data", published.file), "utf8")
 // CVRF note Type 8 is the assigning CNA. Microsoft declines to rate a CVE it did not
 // assign, so severity, CVSS and the Exploitability Index are all absent by policy.
 const note = (type, title) => ({ type, title, value: "x" });
-const base = { cve: "CVE-2026-84353", severity: "Unknown", customer_action_required: true };
+// Severity is a vendor-plural object; the risk path reads `normalized_band`. A
+// bare string resolves to unknown by design, so fixtures state the band.
+const MSRC = { critical: "Critical", high: "Important", medium: "Moderate", low: "Low" };
+function band(value) {
+  if (value === "unknown") return { assessments: [], primary: null, normalized_band: "unknown", normalized_basis: "absent" };
+  return {
+    assessments: [{ source: "microsoft", role: "publisher", scale: "msrc", value: MSRC[value], basis: "vendor" }],
+    primary: "microsoft",
+    normalized_band: value,
+    normalized_basis: "scale-mapping:msrc:1.0",
+  };
+}
+
+const base = { cve: "CVE-2026-84353", severity: band("unknown"), customer_action_required: true };
 
 assert.equal(issuingCna({ vendor_guidance: { notes: [note(8, "Chrome")] } }), "Chrome");
 assert.equal(issuingCna({ vendor_guidance: { notes: [note(8, "Microsoft")] } }), "Microsoft");
@@ -51,7 +64,7 @@ assert.equal(cveProgramUrl(undefined), null);
 
 // Rated by Microsoft but assigned elsewhere: two different scales, worth naming.
 {
-  const complete = { ...base, severity: "Important", cvss: { base_score: 7.8 }, attack: { vector: "local", privileges_required: "low", user_interaction: "none" }, inference: { framework_assessment: null, model: "none" } };
+  const complete = { ...base, severity: band("high"), cvss: { base_score: 7.8 }, attack: { vector: "local", privileges_required: "low", user_interaction: "none" }, inference: { framework_assessment: null, model: "none" } };
   const status = reviewStatus({ ...complete, inference: undefined, vendor_guidance: { notes: [note(8, "GitHub_M")] } });
   const surfaced = status.reasons.find(item => item.code === "third-party-cna");
   assert.ok(surfaced, "a third-party assignment must be surfaced even when Microsoft rated it");
@@ -63,7 +76,7 @@ assert.equal(cveProgramUrl(undefined), null);
 
 // And must not fire for the ordinary case, or it fires on 973 of 1,185 records.
 {
-  const status = reviewStatus({ ...base, severity: "Important", vendor_guidance: { notes: [note(8, "Microsoft")] } });
+  const status = reviewStatus({ ...base, severity: band("high"), vendor_guidance: { notes: [note(8, "Microsoft")] } });
   assert.equal(status.reasons.some(item => item.code === "third-party-cna"), false);
 }
 
@@ -71,11 +84,40 @@ assert.equal(cveProgramUrl(undefined), null);
 // every one of them is flagged. If this ever reads zero, the detector has gone blind.
 const chrome = records.filter(record => issuingCna(record) === "Chrome");
 assert.ok(chrome.length > 0, "the published month must contain Chrome-CNA records");
-assert.equal(chrome.filter(record => record.severity !== "Unknown").length, 0, "Microsoft does not rate Chrome-assigned CVEs; a rating here means the severity path invented one");
+// Microsoft still rates none of them. The band they now carry is Google's own
+// tier, read from the CVE Program record and attributed to Chrome, so the guard
+// moves from "no band at all" to "no band from the publisher" - which is what it
+// was always actually asserting.
+assert.equal(
+  chrome.filter(record => (record.severity?.assessments || []).some(item => item.role === "publisher")).length,
+  0,
+  "Microsoft does not rate Chrome-assigned CVEs; a publisher assessment here means the severity path invented one",
+);
+assert.equal(
+  chrome.filter(record => record.severity?.primary !== "Chrome").length,
+  0,
+  "a Chrome-assigned record's severity must be attributed to Chrome, not to the publisher",
+);
+assert.ok(
+  chrome.some(record => record.severity?.normalized_band === "critical"),
+  "Google rates one September Chromium record Critical; if none is critical the tier is not being read",
+);
+// They stay flagged, but for the accurate reason. missing-vendor-severity is now
+// false of them - Google published a band - and asserting it would be asserting
+// something untrue. What holds them is that the saved model assessment reasoned
+// from "no vendor severity exists", which Google's tier has superseded.
 for (const record of chrome) {
   const status = reviewStatus(record);
-  assert.ok(status.required, `${record.cve} is unrated and must be flagged`);
-  assert.ok(status.reasons.some(item => item.code === "missing-vendor-severity"), `${record.cve} must carry missing-vendor-severity`);
+  assert.ok(status.required, `${record.cve} must still be flagged`);
+  assert.ok(
+    status.reasons.some(item => item.code === "superseded-assessment"),
+    `${record.cve} must carry superseded-assessment: its assessment predates Google's band`,
+  );
+  assert.equal(
+    status.reasons.some(item => item.code === "missing-vendor-severity"),
+    false,
+    `${record.cve} is rated by Google, so missing-vendor-severity would be false`,
+  );
 }
 
 const thirdParty = records.filter(record => { const cna = issuingCna(record); return cna && cna !== "Microsoft"; });

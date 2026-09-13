@@ -71,6 +71,22 @@ export const RISK_MODEL = Object.freeze({
   },
 });
 
+// The one place JavaScript reads a severity band. Severity is a vendor-plural
+// object: each assertion carries the scale it was made on and who made it, and
+// `normalized_band` is the result of translating those through
+// data/severity-scales.json.
+//
+// Anything that is not a populated severity object resolves to "unknown", which
+// trips the existing review flag. It deliberately refuses to translate a legacy
+// Microsoft string: doing so would be a second copy of the msrc scale living in
+// JavaScript, and it would let an unmigrated record pass silently as properly
+// mapped data instead of showing up as the migration gap it is.
+export function severityBand(record) {
+  const severity = record?.severity;
+  if (severity && typeof severity === "object") return severity.normalized_band || "unknown";
+  return "unknown";
+}
+
 export function isCriticalPreAuthNetworkRce(record) {
   // A missing base score is not a zero. Treat it as unknown and let the
   // unknown-severity baseline handle the record instead of scoring it benign.
@@ -86,8 +102,8 @@ export function selectBaselineModel(record, likelihoodIndex) {
   if (record.customer_action_required === false) return ["no-customer-action", RISK_MODEL.baselineModels["no-customer-action"]];
   if (record.threat?.kev || record.threat?.exploitation_detected) return ["active-exploitation", RISK_MODEL.baselineModels["active-exploitation"]];
   if (isCriticalPreAuthNetworkRce(record) && likelihoodIndex >= 2) return ["critical-preauth-network-rce", RISK_MODEL.baselineModels["critical-preauth-network-rce"]];
-  if (record.severity === "Unknown") return ["unknown-severity", RISK_MODEL.baselineModels["unknown-severity"]];
-  if (record.severity === "Critical") return ["critical-technical", RISK_MODEL.baselineModels["critical-technical"]];
-  if (likelihoodIndex >= 2 && record.severity === "Important") return ["elevated-high-severity", RISK_MODEL.baselineModels["elevated-high-severity"]];
+  if (severityBand(record) === "unknown") return ["unknown-severity", RISK_MODEL.baselineModels["unknown-severity"]];
+  if (severityBand(record) === "critical") return ["critical-technical", RISK_MODEL.baselineModels["critical-technical"]];
+  if (likelihoodIndex >= 2 && severityBand(record) === "high") return ["elevated-high-severity", RISK_MODEL.baselineModels["elevated-high-severity"]];
   return ["standard-remediation", RISK_MODEL.baselineModels["standard-remediation"]];
 }

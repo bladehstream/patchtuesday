@@ -1,8 +1,28 @@
-import { RISK_MODEL, isCriticalPreAuthNetworkRce, selectBaselineModel } from "./risk-model.js?v=2026.09.1";
+import { RISK_MODEL, isCriticalPreAuthNetworkRce, selectBaselineModel, severityBand } from "./risk-model.js?v=2026.09.1";
 
 export const ACTIONS = RISK_MODEL.actionLabels;
 export const LIKELIHOOD = RISK_MODEL.likelihoodLabels;
-export { isCriticalPreAuthNetworkRce };
+export { isCriticalPreAuthNetworkRce, severityBand };
+
+// A saved model assessment reasoned from the publisher's rating. Where the
+// normalised band is now governed by someone else - another vendor outranking the
+// publisher, or a band the publisher never gave at all - the premise the model
+// wrote against is gone, and its conclusion is not evidence about the record as
+// it now stands. Twenty-eight September records are in that position: five where
+// the upstream Linux CNA rates higher than Microsoft, and twenty-three Chromium
+// records Microsoft declined to rate where Google's tier now governs.
+//
+// Such a record falls back to deterministic policy and is flagged for
+// re-inference, rather than quietly keeping an action computed from a band that
+// no longer holds. This is deliberately not the same state as an assessment that
+// failed schema validation, and it carries its own review reason.
+export function assessmentSuperseded(record) {
+  const severity = record?.severity;
+  if (!severity || typeof severity !== "object") return false;
+  if (severity.divergence) return true;
+  const assessments = severity.assessments || [];
+  return assessments.length > 0 && !assessments.some(item => item.role === "publisher");
+}
 
 export const PRIORITY_LABELS = Object.freeze({
   "Immediate": "Emergency",
@@ -174,7 +194,7 @@ export function reviewStatus(record) {
   if (record.customer_action_required === false) return { required: false, reasons };
   const cna = issuingCna(record);
   const thirdParty = Boolean(cna) && cna !== "Microsoft";
-  if (record.severity === "Unknown") {
+  if (severityBand(record) === "unknown") {
     add(
       "missing-vendor-severity",
       thirdParty
@@ -185,12 +205,29 @@ export function reviewStatus(record) {
         : "No vendor severity and no CVSS score on the source record.",
     );
   } else if (thirdParty) {
-    // Rated by Microsoft despite a third-party assignment - worth knowing, because the
-    // two scales are not the same claim, but not on its own a reason to review.
+    // Worth knowing, because the two scales are not the same claim, but not on its
+    // own a reason to review. Who the shown band belongs to is no longer a
+    // constant: since the vendor-plural migration the band may be the assigning
+    // CNA's rather than Microsoft's, so the message reads it off the record
+    // instead of asserting one or the other.
+    const attributed = record.severity?.primary;
     note(
       "third-party-cna",
-      `${cna} assigned this CVE; the rating shown is Microsoft's, not ${cna}'s. Check the two agree before citing either.`,
+      attributed && attributed !== "microsoft"
+        ? `${cna} assigned this CVE and the rating shown is ${cna}'s own, on ${cna}'s scale. Microsoft did not rate it.`
+        : `${cna} assigned this CVE; the rating shown is Microsoft's, not ${cna}'s. Check the two agree before citing either.`,
       `Issuing CNA: ${cna}. Rating: ${cveProgramUrl(record.cve) || "CVE Program record"}`,
+    );
+  }
+  const divergence = record.severity?.divergence;
+  if (divergence) {
+    const parties = (record.severity?.assessments || []).map(item => `${item.source} ${item.value}`).join(" against ");
+    add(
+      "severity-divergence",
+      divergence.kind === "assessment"
+        ? "Two parties rated this on comparable evidence and disagreed. The higher rating is in force; read both before deciding."
+        : "Two parties rated this on scales that do not compare. The higher normalised band is in force; read both on their own scales.",
+      `${parties}${divergence.spread !== undefined ? ` (CVSS spread ${divergence.spread})` : ""}`,
     );
   }
   if (missingImpactJudgement(record)) {
@@ -203,6 +240,12 @@ export function reviewStatus(record) {
   const framework = record.inference?.framework_assessment;
   if (!framework || record.inference?.model === "none") {
     add("missing-assessment", "Obtain an inference assessment for this CVE.");
+  } else if (assessmentSuperseded(record)) {
+    add(
+      "superseded-assessment",
+      "The saved assessment was made against a severity another vendor has since overruled, so it no longer describes this record. Deterministic policy is in force; re-run inference for this CVE.",
+      `normalized_band=${severityBand(record)} basis=${record.severity?.normalized_basis ?? "absent"}`,
+    );
   } else if (!frameworkIsUsable(framework)) {
     // The saved assessment exists but does not validate, so baselineProfile fell
     // back to deterministic policy. That fallback is a placeholder, not a
@@ -262,7 +305,7 @@ export function reviewStatus(record) {
     }
     // Where the vendor published no severity at all, SSVC Technical Impact is the only
     // impact signal on the record. Everywhere else it largely restates the severity.
-    if (record.severity === "Unknown" && decision.technical_impact) {
+    if (severityBand(record) === "unknown" && decision.technical_impact) {
       note("ssvc-technical-impact", `No vendor severity exists, but CISA assesses the technical impact as ${decision.technical_impact}.`, `CISA-ADP SSVC Technical Impact: ${decision.technical_impact}`);
     }
   } else if (record.cve_program) {
@@ -301,7 +344,10 @@ export function baselineProfile(record) {
   let model = fallbackModel;
   let action = model.action;
   const framework = record.inference?.framework_assessment;
-  if (frameworkIsUsable(framework)) {
+  // A superseded assessment is set aside exactly like an unusable one: the record
+  // falls to deterministic policy rather than keeping an action reasoned from a
+  // band that no longer governs.
+  if (frameworkIsUsable(framework) && !assessmentSuperseded(record)) {
     likelihood = Math.max(likelihood, LIKELIHOOD.indexOf(framework.baseline_likelihood));
     action = ACTIONS.indexOf(framework.baseline_action);
     modelId = framework.baseline_model;
@@ -412,8 +458,11 @@ export function normalizeRecord(record) {
     month: record.month || "unknown",
     cve: record.cve || "UNKNOWN",
     title: record.title || "Untitled vulnerability",
-    severity: record.severity || "Unknown",
-    severity_basis: record.severity_basis || (record.severity ? "vendor" : "absent"),
+    // Severity is a vendor-plural object. An unmigrated record keeps whatever it
+    // had; severityBand() resolves anything that is not an object to "unknown",
+    // so a missed migration shows up as a review flag rather than as a band.
+    severity: record.severity ?? null,
+    severity_basis: record.severity_basis || "absent",
     customer_action_required: record.customer_action_required ?? null,
     cvss: record.cvss || { base_score: null, temporal_score: null, vector: null, version: "unknown" },
     products: Array.isArray(record.products) ? record.products : [],
@@ -429,6 +478,11 @@ export function normalizeRecord(record) {
     source: record.source || {},
     dataset_provenance: record.dataset_provenance || {},
     inference: record.inference || {},
+    // Carries the CVE Program enrichment, which ssvc() and the severity
+    // assessments both read. Omitting it here silently disabled every SSVC
+    // review reason in the browser while the tests, which parse the JSONL
+    // directly, went on passing.
+    cve_program: record.cve_program || null,
     review: record.review || null,
     priority: record.priority || null,
     assessment: record.assessment || null,
@@ -501,7 +555,7 @@ function allText(record) {
   return [
     record.cve,
     record.title,
-    record.severity,
+    severityBand(record),
     record.attack?.vector,
     record.attack?.privileges_required,
     record.attack?.user_interaction,
@@ -519,7 +573,7 @@ function fieldMatches(record, field, value, selectedMitigations) {
   if (field === "cve") return record.cve.toLowerCase().includes(query);
   if (field === "tag") return [...(record.tags || []), ...(record.product_tags || [])].some(tag => tag.toLowerCase() === query || tag.toLowerCase().includes(query));
   if (field === "product") return (record.products || []).some(product => `${product.name} ${product.product_id}`.toLowerCase().includes(query));
-  if (field === "severity") return record.severity.toLowerCase() === query;
+  if (field === "severity") return severityBand(record) === query.toLowerCase();
   if (field === "vector") return record.attack?.vector?.toLowerCase() === query;
   if (field === "microsoft") return record.threat?.exploitation_assessment?.toLowerCase() === query.replaceAll(" ", "-");
   if (field === "mitigation") return (record.mitigation_candidates || []).some(item => `${item.id} ${item.evidence}`.toLowerCase().includes(query));
@@ -604,7 +658,7 @@ export function summariseTile(records, selectedMitigations = new Set()) {
   const worstAction = worstIndex < 0 ? null : ACTIONS[worstIndex];
   const unverified = worstAction !== null
     && UNDERSTATING_ACTIONS.has(worstAction)
-    && records.every((record, index) => actions[index] !== worstAction || record.severity === "Unknown");
+    && records.every((record, index) => actions[index] !== worstAction || severityBand(record) === "unknown");
   // reviewStatus is the most expensive thing here - it rebuilds the per-product
   // update tables from the vendor remediation list. The loaders already compute
   // it once per record, so use that result when it is present.

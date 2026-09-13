@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { parseJsonl, predictProfile, reviewStatus, frameworkIsUsable, missingImpactJudgement } from "../engine.js";
+import { parseJsonl, predictProfile, reviewStatus, frameworkIsUsable, missingImpactJudgement, severityBand, assessmentSuperseded } from "../engine.js";
 import fsSync from "node:fs";
 
 const records = parseJsonl(fs.readFileSync(new URL("../data/2026-Sep.jsonl", import.meta.url), "utf8"));
@@ -38,18 +38,74 @@ assert.equal(dnsMitigated.residual.action, "Out-of-cycle");
 // Regression: a missing vendor severity and a missing CVSS score must never
 // resolve to Low. 23 Chromium passthrough records were published as Low on
 // this basis, 56% of the entire Low bucket.
-const unevidencedLow = records.filter(item => item.severity === "Low" && item.cvss?.base_score === null && item.severity_basis !== "vendor");
+const unevidencedLow = records.filter(item => severityBand(item) === "low" && item.cvss?.base_score == null && !(item.severity?.assessments || []).some(entry => entry.basis === "vendor"));
 assert.equal(unevidencedLow.length, 0, `No record may be rated Low without vendor severity or a CVSS score. Offenders: ${unevidencedLow.slice(0, 5).map(item => item.cve).join(", ")}`);
 
 // Every Unknown-severity record must carry a review flag, and its scheduled
 // action must be a declared placeholder rather than a fall-through.
-const unknowns = records.filter(item => item.severity === "Unknown");
+const unknowns = records.filter(item => severityBand(item) === "unknown");
 for (const item of unknowns) {
   if (item.customer_action_required === false) continue;
   const status = reviewStatus(item);
   assert.ok(status.required, `${item.cve} has Unknown severity and must be flagged for review`);
   assert.ok(status.reasons.some(reason => reason.code === "missing-vendor-severity"), `${item.cve} must carry the missing-vendor-severity review reason`);
 }
+// After the vendor-plural migration no September record is unknown: Google's tier
+// now covers the 23 Chromium records that used to be. The loop above is therefore
+// empty, and an empty loop proves nothing - so the unknown path is driven here by
+// a synthetic record instead. It is the fail-loud guard for a month where a vendor
+// publishes nothing or the enrichment fetch fails, and it must not be removed as
+// dead code just because this month does not reach it.
+{
+  const unrated = {
+    cve: "CVE-0000-UNRATED",
+    severity: { assessments: [], primary: null, normalized_band: "unknown", normalized_basis: "absent" },
+    customer_action_required: true,
+    cvss: { base_score: null },
+    attack: { vector: "network", privileges_required: "none", user_interaction: "none" },
+    threat: {},
+    tags: [],
+    inference: { model: "none" },
+  };
+  assert.equal(severityBand(unrated), "unknown", "a record nobody rated must read as unknown");
+  const status = reviewStatus(unrated);
+  assert.ok(status.required, "an unrated record must be flagged for review");
+  assert.ok(status.reasons.some(reason => reason.code === "missing-vendor-severity"), "the missing-vendor-severity reason must still be reachable");
+  const profile = predictProfile(unrated);
+  assert.equal(profile.baseline.model, "unknown-severity", "the unknown-severity baseline model must still be selectable");
+  assert.equal(profile.residual.action, "Scheduled", "unknown resolves to the Scheduled placeholder, never to a low-risk finding");
+  assert.notEqual(severityBand(unrated), "low", "absence of evidence is not a low rating");
+}
+
+// The accessor is deliberately fail-loud. A legacy Microsoft string must read as
+// unknown rather than being quietly re-mapped, so an unmigrated record shows up
+// as the migration gap it is instead of passing as properly mapped data.
+assert.equal(severityBand({ severity: "Important" }), "unknown", "a legacy severity string must not be silently re-mapped");
+assert.equal(severityBand({ severity: "Critical" }), "unknown", "a legacy severity string must not be silently re-mapped");
+assert.equal(severityBand({}), "unknown", "an absent severity reads as unknown");
+
+// Twenty-eight records had their band set by someone other than the publisher:
+// five where the upstream Linux CNA rates higher than Microsoft, and twenty-three
+// Chromium records Microsoft declined to rate. Their saved assessments reasoned
+// from a band that no longer governs, so deterministic policy is in force and the
+// saved action must not be what is shown.
+const superseded = records.filter(assessmentSuperseded);
+assert.equal(superseded.length, 28, `expected 28 superseded assessments, found ${superseded.length}`);
+for (const record of superseded) {
+  assert.ok(reviewStatus(record).reasons.some(reason => reason.code === "superseded-assessment"), `${record.cve} must be flagged as superseded`);
+}
+
+// Two of them cross into critical, and their action moves with the band. If a
+// saved Scheduled assessment were still driving these, both would read Scheduled
+// while displaying a critical band.
+for (const cve of ["CVE-2026-80726", "CVE-2026-84353"]) {
+  const record = records.find(item => item.cve === cve);
+  assert.ok(record, `${cve} must be in the published month`);
+  assert.equal(severityBand(record), "critical", `${cve} must normalise to critical`);
+  assert.equal(predictProfile(record).baseline.model, "critical-technical", `${cve} must fall to the deterministic critical model`);
+  assert.equal(predictProfile(record).residual.action, "Out-of-cycle", `${cve} must be expedited by its critical band, not held at the saved Scheduled action`);
+}
+
 // Layer separation: nothing the risk path reads may be produced by matching
 // advisory prose. Product tags are derived from structured vendor strings and are
 // cosmetic; judgement tags are model-asserted and gate mitigation credit and

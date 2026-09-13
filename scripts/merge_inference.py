@@ -389,10 +389,10 @@ def main() -> None:
     # value no severity is meant to reach: a severity string that is not in this map
     # is an unhandled vocabulary change, and it must land after Unknown and be added
     # here on purpose rather than quietly inheriting Unknown's rank.
-    severity_order = {"Critical": 0, "Important": 1, "Moderate": 2, "Low": 3, "Unknown": 4}
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
     merged.sort(key=lambda item: (
         not (item.get("threat", {}).get("kev") or item.get("threat", {}).get("exploitation_detected")),
-        severity_order.get(item.get("severity"), 99),
+        severity_order.get((item.get("severity") or {}).get("normalized_band") if isinstance(item.get("severity"), dict) else None, 99),
         item.get("attack", {}).get("vector") != "network",
         item.get("cve"),
     ))

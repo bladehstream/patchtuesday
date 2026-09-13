@@ -578,3 +578,9 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 }
 .review-context h3 { margin: 0 0 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
 .review-context ul { margin: 0; padding-left: 18px; }
+
+/* A band the vendor published reads plainly; the tooltip names who published it.
+   A record two vendors disagree about is marked, because which of them you read
+   changes the answer. */
+.severity-band { border-bottom: 1px dotted var(--line-strong); cursor: help; }
+.severity-divergent { color: #8a4b08; border-bottom-color: #8a4b08; font-weight: 650; }

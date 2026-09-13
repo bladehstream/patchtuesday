@@ -66,7 +66,7 @@ An administrator patching a kernel needs to see that. Today the record shows Mod
     "spread": 4.6
   },
   "normalized_band": "high",
-  "normalized_basis": "scale-mapping:msrc@1.0"
+  "normalized_basis": "scale-mapping:msrc:1.0"
 }
 ```
 
@@ -100,7 +100,7 @@ Rules the shape enforces:
     "reason": "Microsoft does not rate CVEs assigned by another CNA"
   },
   "normalized_band": "medium",
-  "normalized_basis": "scale-mapping:chromium@1.0"
+  "normalized_basis": "scale-mapping:chromium:1.0"
 }
 ```
 
@@ -146,6 +146,6 @@ Measured cost on 2026-Sep, which is smaller than I first said: all five disagree
 2. Two assessments with different `scale` values never produce a `divergence.kind` of `assessment`. Rejecting fixture: a Chromium Medium and a Microsoft Moderate reported as agreeing.
 3. An `enrichment` role never sets `primary` and never reaches `normalized_band`. Rejecting fixture: a CISA-ADP CVSS presented as a vendor rating — this is the Phase 0 fail-open in its new shape.
 4. CVE-2026-80726 produces `divergence.kind: "assessment"` with a spread of 4.6. Rejecting fixture: the same record reporting no divergence.
-5. A Chromium Medium produces `normalized_band: "medium"` with `normalized_basis: "scale-mapping:chromium@1.0"`. Rejecting fixture: one carrying `normalized_basis: "vendor-scale"`, which would claim the vendor said "medium" when it said "Medium" on its own scale.
+5. A Chromium Medium produces `normalized_band: "medium"` with `normalized_basis: "scale-mapping:chromium:1.0"`. Rejecting fixture: one carrying `normalized_basis: "vendor-scale"`, which would claim the vendor said "medium" when it said "Medium" on its own scale.
 6. **A vendor band always beats a CVSS score.** Fixture: MSRC Critical with a Microsoft CVSS of 4.4, which is a real 2026-Sep record. It must produce `critical`. Rejecting fixture: one producing `medium` from the score. 84 Criticals and 234 Importants depend on this rule.
 7. Every band in `data/severity-scales.json` maps into the target vocabulary, and each scale's band set matches what that vendor actually publishes - Adobe has no Low, so an Adobe Low is a parse error rather than a mapping. Rejecting fixture: a band mapping to a value outside the vocabulary.

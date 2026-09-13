@@ -9,7 +9,12 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "data", "months.json
 const published = manifest.find(item => !String(item.month).endsWith("-demo"));
 const records = fs.readFileSync(path.join(root, "data", published.file), "utf8").trim().split(/\r?\n/).map(JSON.parse);
 
-const base = { cve: "CVE-2026-00001", severity: "Important", customer_action_required: true, cvss: { base_score: 7.8 }, attack: { vector: "network", privileges_required: "none", user_interaction: "none" }, threat: {}, inference: { framework_assessment: { risk_model_version: "2026.09.1", baseline_model: "standard-remediation", baseline_likelihood: "Plausible", baseline_action: "Scheduled", confidence: "high", factors: {}, risk_communication: {} } } };
+// Severity is a vendor-plural object. The band is what the risk path reads; a
+// bare string resolves to unknown and would flag the record for review, which
+// would mask what these assertions are actually about.
+const HIGH = { assessments: [{ source: "microsoft", role: "publisher", scale: "msrc", value: "Important", basis: "vendor" }], primary: "microsoft", normalized_band: "high", normalized_basis: "scale-mapping:msrc:1.0" };
+
+const base = { cve: "CVE-2026-00001", severity: HIGH, customer_action_required: true, cvss: { base_score: 7.8 }, attack: { vector: "network", privileges_required: "none", user_interaction: "none" }, threat: {}, inference: { framework_assessment: { risk_model_version: "2026.09.1", baseline_model: "standard-remediation", baseline_likelihood: "Plausible", baseline_action: "Scheduled", confidence: "high", factors: {}, risk_communication: {} } } };
 const withSsvc = options => ({ ...base, cve_program: { status: "found", ssvc: options } });
 
 assert.equal(ssvc(withSsvc({ exploitation: "none" })).exploitation, "none");

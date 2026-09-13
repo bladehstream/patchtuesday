@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import { formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "../engine.js";
 
+// Severity is a vendor-plural object; the risk path reads `normalized_band`. A
+// bare string resolves to unknown by design, so fixtures state the band.
+const MSRC = { critical: "Critical", high: "Important", medium: "Moderate", low: "Low" };
+function band(value) {
+  if (value === "unknown") return { assessments: [], primary: null, normalized_band: "unknown", normalized_basis: "absent" };
+  return {
+    assessments: [{ source: "microsoft", role: "publisher", scale: "msrc", value: MSRC[value], basis: "vendor" }],
+    primary: "microsoft",
+    normalized_band: value,
+    normalized_basis: "scale-mapping:msrc:1.0",
+  };
+}
+
 const active = parseJsonl(JSON.stringify({
-  month: "2026-Sep", cve: "CVE-TEST-1", severity: "Critical", tags: ["server"],
+  month: "2026-Sep", cve: "CVE-TEST-1", severity: band("critical"), tags: ["server"],
   attack: { vector: "network", privileges_required: "none", user_interaction: "none" },
   threat: { kev: true, epss: 0.9 },
   mitigation_candidates: [{ id: "vendor_workaround", relevance: "relevant", confidence: "high", effect: { likelihood_steps: 2, consequence_steps: 1, path_block: true } }]
@@ -12,7 +25,7 @@ const activeProfile = predictProfile(active, new Set(["vendor_workaround"]));
 assert.equal(activeProfile.baseline.action, "Immediate");
 assert.equal(activeProfile.residual.action, "Out-of-cycle", "Known exploitation keeps an out-of-cycle floor");
 
-const local = { ...active, cve: "CVE-TEST-2", severity: "Important", attack: { vector: "local", privileges_required: "low", user_interaction: "none" }, threat: { kev: false, exploitation_assessment: "less-likely", epss: 0.001 }, mitigation_candidates: [{ id: "segmentation_acl", relevance: "not-relevant", confidence: "high", effect: { likelihood_steps: 1 } }] };
+const local = { ...active, cve: "CVE-TEST-2", severity: band("high"), attack: { vector: "local", privileges_required: "low", user_interaction: "none" }, threat: { kev: false, exploitation_assessment: "less-likely", epss: 0.001 }, mitigation_candidates: [{ id: "segmentation_acl", relevance: "not-relevant", confidence: "high", effect: { likelihood_steps: 1 } }] };
 const localProfile = predictProfile(local, new Set(["segmentation_acl"]));
 assert.equal(localProfile.baseline.action, localProfile.residual.action, "An irrelevant mitigation receives no credit");
 
@@ -51,7 +64,7 @@ assert.equal(predictProfile(moreLikely, new Set()).baseline.likelihood, "Elevate
 
 const frameworkReviewed = {
   ...moreLikely,
-  severity: "Important",
+  severity: band("high"),
   inference: {
     framework_assessment: {
       risk_model_version: "2026.09.1",
@@ -69,7 +82,7 @@ assert.equal(frameworkProfile.baseline.model_version, "2026.09.1");
 
 const ordinaryNetworkIssue = {
   ...moreLikely,
-  severity: "Moderate",
+  severity: band("medium"),
   attack: { vector: "network", privileges_required: "none", user_interaction: "required" },
   threat: { exploitation_assessment: "unlikely", kev: false, exploitation_detected: false, epss: 0.001 },
   tags: ["information-disclosure"],

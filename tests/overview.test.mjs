@@ -7,6 +7,7 @@ import {
   parseJsonl,
   predictProfile,
   recordFilterTags,
+  severityBand,
   reviewStatus,
   summariseTile,
   worstFirst,
@@ -15,13 +16,27 @@ import {
 // A fixture record carries only what the risk model reads. Anything the engine
 // needs and the fixture omits would silently take a default, so the pieces that
 // decide the action are all stated here.
+// Severity is a vendor-plural object. Fixtures still name a Microsoft band for
+// readability; this turns it into the record shape the risk path reads.
+const MSRC_BAND = { Critical: "critical", Important: "high", Moderate: "medium", Low: "low" };
+function severityObject(value) {
+  const band = MSRC_BAND[value];
+  if (!band) return { assessments: [], primary: null, normalized_band: "unknown", normalized_basis: "absent" };
+  return {
+    assessments: [{ source: "microsoft", role: "publisher", scale: "msrc", value, basis: "vendor" }],
+    primary: "microsoft",
+    normalized_band: band,
+    normalized_basis: "scale-mapping:msrc:1.0",
+  };
+}
+
 function fixture(cve, { severity = "Important", assessment = "less-likely", kev = false, tags = [], productTags = [], baselineAction = null, baselineModel = "standard-remediation", baseScore = 7.5 } = {}) {
   return {
     schema_version: "1.0",
     month: "2026-Fix",
     cve,
     title: `${cve} fixture`,
-    severity,
+    severity: severityObject(severity),
     customer_action_required: true,
     cvss: { base_score: baseScore, temporal_score: null, vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H", version: "3.1" },
     products: [],

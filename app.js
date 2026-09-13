@@ -1,4 +1,4 @@
-import { ACTIONS, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, monthTotals, overviewBoard, publicProfile, recordFilterTags, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile, worstFirst } from "./engine.js?v=2026.09.responsive";
+import { ACTIONS, severityBand, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, monthTotals, overviewBoard, publicProfile, recordFilterTags, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile, worstFirst } from "./engine.js?v=2026.09.severity";
 
 const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "", view: "overview" };
 const $ = id => document.getElementById(id);
@@ -10,9 +10,23 @@ async function loadCatalog() {
   renderMitigations();
 }
 
+const SEVERITY_LABELS = Object.freeze({ critical: "Critical", high: "High", medium: "Medium", low: "Low", unknown: "Unknown" });
+
+// The band, plus who said it. A record rated by someone other than the publisher
+// is a different claim from one the publisher rated, and the tooltip says which.
 function severityHtml(record) {
-  const label = escapeHtml(record.severity);
-  return record.severity === "Unknown" ? `<span class="severity-unknown" title="The vendor published no severity rating and no CVSS score.">${label}</span>` : label;
+  const band = severityBand(record);
+  const label = escapeHtml(SEVERITY_LABELS[band] || band);
+  if (band === "unknown") {
+    return `<span class="severity-unknown" title="No party published a severity rating and no CVSS score is available.">${label}</span>`;
+  }
+  const assessments = record.severity?.assessments || [];
+  const sources = assessments.map(item => `${item.source} ${item.value}`).join(" · ");
+  const basis = record.severity?.normalized_basis === "cvss-derived"
+    ? "Derived from a CVSS score because no party published a band."
+    : sources ? `Published as: ${sources}` : "";
+  const divergent = record.severity?.divergence ? " severity-divergent" : "";
+  return basis ? `<span class="severity-band${divergent}" title="${escapeHtml(basis)}">${label}</span>` : label;
 }
 
 function publishedDataUrl(select) {
@@ -205,7 +219,7 @@ function filteredRecords() {
   const vectors = checkedValues("vector-filters");
   return state.records.filter(record => {
     if (!matchesSmartSearch(record, state.searchQuery, state.selectedMitigations)) return false;
-    if (!severity.has(record.severity)) return false;
+    if (!severity.has(severityBand(record))) return false;
     if (!vectors.has(record.attack.vector)) return false;
     if (!matchesProductFilters(record)) return false;
     if ($("filter-exploited").checked && !(record.threat.kev || record.threat.exploitation_detected)) return false;
@@ -477,8 +491,8 @@ function riskInterpretation(record, profile) {
   if (record.customer_action_required === false) return "Microsoft states that this service has already been mitigated and no customer action is required.";
   if (record.threat.kev || record.threat.exploitation_detected) return "Immediate action is driven by confirmed exploitation. CVSS describes technical impact, but observed exploitation determines present urgency.";
   if (isCriticalPreAuthNetworkRce(record) && profile.baseline.likelihood === "Elevated") return "Immediate action is driven by the combination of Critical impact, unauthenticated network reachability, no user interaction, remote code execution, and elevated Microsoft exploitation likelihood.";
-  if (record.severity === "Unknown") return "The vendor published no severity rating and no CVSS score, so no severity-driven judgement is possible. This record is flagged for review; the scheduled action is a placeholder, not a finding of low risk.";
-  if (record.severity === "Critical") return "Out-of-cycle action is driven by Critical technical impact even though current exploitation evidence is lower.";
+  if (severityBand(record) === "unknown") return "No party published a severity rating and no CVSS score is available, so no severity-driven judgement is possible. This record is flagged for review; the scheduled action is a placeholder, not a finding of low risk.";
+  if (severityBand(record) === "critical") return "Out-of-cycle action is driven by Critical technical impact even though current exploitation evidence is lower.";
   return "The action combines current exploitation evidence with technical severity and exploit prerequisites. Selected controls adjust the result only when the reviewed overlay links them to this exploit path.";
 }
 

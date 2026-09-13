@@ -59,6 +59,12 @@ Sanity check before going further. A month that looks wrong here is a parser pro
 
 Static JSON per CVE from the CVE Program, no key and no rate limit; a full month takes about 25 seconds cold and is instant from the cache. This adds the assigning CNA and the CISA-ADP SSVC decision points as a `cve_program` block. Coverage on 2026-Sep was 1081 of 1185 records; anything much below that means the fetch degraded and should be re-run rather than published.
 
+Then normalise severity across vendor scales, which is what turns the assigning CNA's own band into something the risk path can read:
+
+    python3 scripts/normalize_severity.py --published work/2026-Oct-baseline-enriched.jsonl --output work/2026-Oct-baseline-enriched.jsonl
+
+This has to be its own step rather than part of the enrichment, because `severity` is on `apply_cve_enrichment.py`'s RESERVED list and that script refuses to write a risk-path field. It prints every band it moved and every vendor disagreement it found; read that output rather than assuming it changed nothing, because unlike `refresh_product_tags.py` this one is not rating-neutral. Skipping it is not silent: `severityBand()` resolves an un-normalised record to `unknown`, so the whole month arrives flagged for review rather than quietly mis-rated.
+
 SSVC is CISA's judgement, not the vendor's. It never reaches `severity`, `cvss`, `threat` or the risk model - `scripts/apply_cve_enrichment.py` refuses to write if it touched any of them, and `tests/ssvc.test.mjs` asserts the deterministic floor is unmoved by either the quietest or the loudest SSVC value. Use the enriched file for every later step.
 
 ---
