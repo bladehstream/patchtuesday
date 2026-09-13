@@ -220,8 +220,16 @@ This ran unattended as `.github/workflows/refresh-epss.yml` until 2026-09-11, wh
     python3 scripts/assessor_sandbox_self_test.py   # the scorer has no tools, no MCP
     python3 scripts/inference_sandbox_self_test.py  # the adapter has no tools, no MCP — both arms
     python3 scripts/collect_cli_self_test.py  # collector gates (step 5)
+    python3 scripts/build_harness_sets_self_test.py  # the unknown-severity stratum stays reachable
 
 `scripts/scorer_self_test.py` is the exception: it invokes the assessor CLI and costs money, so run it when the scorer or its prompt changes, not every cycle.
+
+Then re-verify a sample against the raw vendor feed. This is the only check that compares what we publish against what the vendor actually said — everything above reads the published JSONL and checks it against itself, which cannot catch a parser that mis-reads the source consistently:
+
+    python3 scripts/prepare_independent_sample.py                     # once per month, draws and pins 20 CVEs
+    node scripts/check_independent_sample.mjs --month 2026-Oct        # defaults to raw/, add --sources for another fetch
+
+It reads `raw/` and `work/`, both gitignored, so it cannot run in CI and a clean clone has nothing to run it against. It exits 2 with the commands to fix it if a source is missing. It checks the deterministic parse only — the CVSS pair, the exploitation assessment against the vendor's threat prose, KEV membership, each party's published severity band, and the EPSS likelihood band. Two things it reports rather than fails on: a CVE absent from the daily EPSS bulk file, which is normal for days after a Patch Tuesday and is what `refresh_epss.py`'s per-CVE API fallback exists for, and an EPSS score that has moved without crossing a band, which changes nothing an administrator would do.
 
 Then open the built site and check the new month:
 
