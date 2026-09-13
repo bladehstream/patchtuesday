@@ -1,22 +1,47 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 
-MODULE_PATH = Path(__file__).parents[1] / "scripts" / "merge_inference.py"
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+MODULE_PATH = ROOT / "scripts" / "merge_inference.py"
 SPEC = importlib.util.spec_from_file_location("merge_inference", MODULE_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+from severity import build_severity, load_scales  # noqa: E402
+
+SCALES = load_scales(ROOT / "data" / "severity-scales.json")
+
+
+def severity_object(band, scale="msrc", source="microsoft"):
+    """A published severity in the vendor-plural shape, built by the real resolver.
+
+    Hand-writing this is how fixtures rot: a flat "Critical" string reads as
+    `unknown` through the band reader, so a gate keyed on the band silently stops
+    testing anything.
+    """
+    return build_severity(
+        SCALES,
+        severity=band if scale == "msrc" else "Unknown",
+        severity_basis="vendor" if scale == "msrc" else "absent",
+        cvss=None,
+        cve_program=None if scale == "msrc" else {"assigner": source, "vendor_severity": {"band": band, "scale": scale}},
+    )
+
 
 BASELINE = {
     "cve": "CVE-TEST-1",
-    "severity": "Critical",
+    "severity": None,  # replaced below, once MODULE_SCALES is loaded
     "customer_action_required": True,
     "cvss": {"base_score": 9.8, "vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"},
     "attack": {"vector": "local", "privileges_required": "low", "user_interaction": "none"},
     "threat": {"kev": False, "exploitation_detected": False, "exploitation_assessment": "unlikely"},
     "tags": ["elevation-of-privilege"],
 }
+BASELINE["severity"] = severity_object("Critical")
 
 
 def expect_failure(function, expected_text):
@@ -84,6 +109,42 @@ def run_tests():
         lambda: MODULE.validate_framework_assessment({"framework_assessment": {**valid_framework, "baseline_likelihood": "Elevated"}}, elevated_network_rce),
         "requires its archetype",
     )
+    # The archetype is deterministic, so a saved one that disagrees is describing
+    # some other record. Both directions are rejected: overstating is 30 of the 32
+    # in 2026-Sep and errs towards patching sooner, understating is the two that
+    # would tell an administrator a critical-band vulnerability is routine.
+    high_band = {**BASELINE, "severity": severity_object("Important")}
+    expect_failure(
+        lambda: MODULE.validate_framework_assessment({"framework_assessment": valid_framework}, high_band),
+        "selects standard-remediation",
+    )
+    MODULE.validate_framework_assessment(
+        {"framework_assessment": {**valid_framework, "baseline_model": "standard-remediation", "baseline_action": "Scheduled"}},
+        high_band,
+    )
+    expect_failure(
+        lambda: MODULE.validate_framework_assessment(
+            {"framework_assessment": {**valid_framework, "baseline_model": "standard-remediation", "baseline_action": "Scheduled"}},
+            BASELINE,
+        ),
+        "selects critical-technical",
+    )
+    # A band nobody published selects unknown-severity, and must not be allowed to
+    # pass as any rated archetype. This is the fail-loud path the project keeps.
+    unrated = {**BASELINE, "severity": severity_object("Unknown")}
+    expect_failure(
+        lambda: MODULE.validate_framework_assessment({"framework_assessment": valid_framework}, unrated),
+        "selects unknown-severity",
+    )
+    MODULE.validate_framework_assessment(
+        {"framework_assessment": {**valid_framework, "baseline_model": "unknown-severity", "baseline_action": "Scheduled"}},
+        unrated,
+    )
+    # A non-Microsoft CNA band reaches the archetype the same way. This is the case
+    # the vendor-plural migration made reachable at all.
+    chromium = {**BASELINE, "severity": severity_object("Critical", scale="chromium", source="Chrome")}
+    MODULE.validate_framework_assessment({"framework_assessment": valid_framework}, chromium)
+
     print("inference merge tests passed")
 
 

@@ -94,6 +94,28 @@ def load_definitions(taxonomy: Path) -> None:
     DEFINITIONS = {k: v for k, v in (data.get("definitions") or {}).items() if not k.startswith("_")}
 
 
+def published_severity(record: dict) -> list[dict]:
+    """What each vendor actually published, and nothing this project derived.
+
+    The scorer is required to quote a span verbatim from the supplied record, and
+    span_verify matches against `json.dumps` of this whole view. Since the
+    vendor-plural migration `severity` also carries `normalized_band` and
+    `normalized_basis`, which are this project's own normalisation across vendor
+    scales - so passing the object whole would make `scale-mapping:msrc:1.0` a
+    quotable, verifiable citation, and the scorer could cite our arithmetic back to
+    us as though the advisory had said it. The vendor's own words are evidence; the
+    band we computed from them is not. The source URL goes too: it is a pointer,
+    not something the advisory states.
+    """
+    severity = record.get("severity")
+    if not isinstance(severity, dict):
+        return []
+    return [
+        {key: value for key, value in assessment.items() if key != "url"}
+        for assessment in severity.get("assessments") or []
+    ]
+
+
 def record_view(record: dict) -> dict:
     """Exactly what the scorer may rely on. No inference, no ratings, no tags."""
     return {
@@ -102,7 +124,7 @@ def record_view(record: dict) -> dict:
         "products": [p.get("name") for p in record.get("products") or []],
         "cvss": record.get("cvss"),
         "attack": record.get("attack"),
-        "severity": record.get("severity"),
+        "severity": published_severity(record),
         "notes": [n.get("value") if isinstance(n, dict) else n for n in record.get("notes") or []],
         "vendor_guidance": record.get("vendor_guidance"),
     }

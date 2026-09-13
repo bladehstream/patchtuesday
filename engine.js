@@ -272,6 +272,16 @@ export function reviewStatus(record) {
       add("no-update-available", "No vendor fix is listed for any affected product.",
           `0 of ${updates.total} affected products have a listed update`);
     }
+    const mismatch = archetypeMismatch(record);
+    if (mismatch) {
+      add(
+        "archetype-contradicts-severity",
+        mismatch.understates
+          ? "The saved assessment treats this as routine remediation, but a vendor rated it critical. The higher remediation floor is in force; the written explanation describes a lesser record and should not be relied on."
+          : "The saved explanation cites a severity no vendor published for this CVE. The priority shown is unchanged, but the stated reasoning for it is wrong.",
+        `saved baseline_model=${mismatch.saved}, severity band=${severityBand(record)} selects ${mismatch.determined}`,
+      );
+    }
     const base = baselineProfile(record);
     if (base.likelihood > LIKELIHOOD.indexOf(framework.baseline_likelihood)) {
       add("changed-threat-evidence", "Recheck the explanation against the newer threat evidence.");
@@ -312,6 +322,34 @@ export function reviewStatus(record) {
     note("ssvc-absent", "No CISA exploitation assessment is available for this CVE, so its exploitation status is unknown rather than quiet.", record.cve_program.ssvc_absent_reason || record.cve_program.status || "");
   }
   return { required: reasons.some(reason => !reason.informational), reasons };
+}
+
+// The archetype a saved assessment names is a claim about the record's inputs, not
+// a judgement about them: `selectBaselineModel` is wholly deterministic, so given
+// the same record and the same likelihood there is exactly one right answer. Where
+// the saved label disagrees, the assessment is describing a record other than this
+// one. On 2026-Sep that is 34 of 1,185 - and it is pre-existing rather than new:
+// before the vendor-plural migration it was 55, and the migration introduced one,
+// CVE-2026-80726, whose assessment is already set aside as superseded.
+//
+// Direction matters and is reported separately. Twenty-seven claim
+// `critical-technical` on a record no vendor rated critical, which overstates the
+// evidence but errs towards patching sooner. Two - CVE-2026-69799 and
+// CVE-2026-69864 - call a critical-band vulnerability routine remediation, which
+// is the direction that gets an administrator hurt.
+export function archetypeMismatch(record) {
+  const framework = record.inference?.framework_assessment;
+  if (!frameworkIsUsable(framework) || assessmentSuperseded(record)) return null;
+  const likelihood = Math.max(LIKELIHOOD.indexOf(framework.baseline_likelihood), 0);
+  const [determinedId, determined] = selectBaselineModel(record, likelihood);
+  if (determinedId === framework.baseline_model) return null;
+  const savedAction = ACTIONS.indexOf(framework.baseline_action);
+  return {
+    saved: framework.baseline_model,
+    determined: determinedId,
+    understates: determined.action > savedAction,
+    determinedAction: determined.action,
+  };
 }
 
 export function baselineProfile(record) {
@@ -359,6 +397,16 @@ export function baselineProfile(record) {
       modelId = fallbackModelId;
       model = fallbackModel;
       reasons.push("Current source evidence exceeds the saved inference; its likelihood and remediation floor take precedence. Review the saved explanation.");
+    }
+    // Same shape as the branch above, on the other input. Where the archetype the
+    // record's own facts select ranks above the saved action, that floor applies.
+    // This raises only: an assessment more cautious than the inputs require is
+    // left alone, because caution is not an error and lowering a published action
+    // on the strength of a label is not a decision this can make on its own.
+    const mismatch = archetypeMismatch(record);
+    if (mismatch && mismatch.understates) {
+      action = Math.max(action, mismatch.determinedAction);
+      reasons.push(`The saved assessment calls this ${mismatch.saved}, but the vendor-published severity selects ${mismatch.determined}. The higher remediation floor applies; the saved explanation describes a lesser record.`);
     }
   } else {
     reasons.push(model.reason);

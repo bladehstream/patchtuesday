@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile } from "../engine.js";
+import { archetypeMismatch, formatEpss, formatMicrosoftAssessment, matchesSmartSearch, parseJsonl, predictProfile, reviewStatus } from "../engine.js";
 
 // Severity is a vendor-plural object; the risk path reads `normalized_band`. A
 // bare string resolves to unknown by design, so fixtures state the band.
@@ -107,5 +107,86 @@ assert.equal(matchesSmartSearch(searchable, '"windows shell" tag:server-2016'), 
 assert.equal(matchesSmartSearch(searchable, "cvss:>=9 microsoft:unlikely vector:network"), true);
 assert.equal(matchesSmartSearch(searchable, "kev:true"), false);
 assert.equal(matchesSmartSearch(searchable, "-tag:windows-shell"), false);
+
+// ---------------------------------------------------------------------------
+// The saved archetype is a claim about the record's inputs, not a judgement.
+// `selectBaselineModel` is deterministic, so a saved label that disagrees is
+// describing some other record. Direction decides what happens next: understating
+// raises the remediation floor, overstating leaves the date alone and says the
+// stated reasoning is wrong.
+// ---------------------------------------------------------------------------
+function assessed(model, action, likelihood = "Low evidence") {
+  return {
+    inference: {
+      review_status: "reviewed",
+      framework_assessment: {
+        risk_model_version: "2026.09.1",
+        baseline_model: model,
+        baseline_action: action,
+        baseline_likelihood: likelihood,
+        confidence: "high",
+        factors: { applicability: "a", threat_evidence: "a", exploitability: "a", technical_impact: "a", workload_context: "a", remediation_context: "a", uncertainty: "a" },
+        risk_communication: { summary: "s", why_this_action: "w", control_limitations: "c", reassessment_triggers: ["t"] },
+      },
+    },
+  };
+}
+
+const archetypeBase = {
+  cve: "CVE-TEST-ARCH",
+  customer_action_required: true,
+  cvss: { base_score: 7.8, vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" },
+  attack: { vector: "local", privileges_required: "low", user_interaction: "none" },
+  threat: { exploitation_assessment: "unlikely", kev: false, exploitation_detected: false, epss: 0.001 },
+  tags: ["elevation-of-privilege"],
+  mitigation_candidates: [],
+};
+
+const agreeing = { ...archetypeBase, severity: band("high"), ...assessed("standard-remediation", "Scheduled") };
+assert.equal(archetypeMismatch(agreeing), null, "an archetype the record's facts select is not a mismatch");
+assert.ok(!reviewStatus(agreeing).reasons.some(r => r.code === "archetype-contradicts-severity"), "an agreeing archetype must not be flagged");
+
+// Understating: a critical band called routine remediation. This is the direction
+// that gets an administrator hurt, and the two 2026-Sep records in it -
+// CVE-2026-69799 and CVE-2026-69864 - were published as Normal scheduled.
+const understating = { ...archetypeBase, severity: band("critical"), ...assessed("standard-remediation", "Scheduled") };
+const understated = archetypeMismatch(understating);
+assert.equal(understated?.determined, "critical-technical");
+assert.equal(understated?.understates, true);
+assert.equal(predictProfile(understating, new Set()).baseline.action, "Out-of-cycle", "a critical band must raise the remediation floor above the saved Scheduled");
+assert.ok(reviewStatus(understating).reasons.some(r => r.code === "archetype-contradicts-severity"), "an understating archetype must be flagged");
+assert.equal(reviewStatus(understating).required, true);
+
+// Overstating: `critical-technical` claimed where no vendor rated it critical.
+// Errs towards patching sooner, so the date stands; the rationale is still false
+// and the reader is told so rather than the action being lowered underneath them.
+const overstating = { ...archetypeBase, severity: band("high"), ...assessed("critical-technical", "Out-of-cycle") };
+const overstated = archetypeMismatch(overstating);
+assert.equal(overstated?.determined, "standard-remediation");
+assert.equal(overstated?.understates, false);
+assert.equal(predictProfile(overstating, new Set()).baseline.action, "Out-of-cycle", "an overstating archetype must not lower the published action");
+assert.ok(reviewStatus(overstating).reasons.some(r => r.code === "archetype-contradicts-severity"), "an overstating archetype must still be flagged");
+// The action is unchanged either way, so only the written reason distinguishes a
+// floor that was applied from one that was not. Without this, dropping the
+// direction guard is an equivalent mutation on the number and a false sentence in
+// the explanation: the reader would be told a higher floor applied when none did.
+assert.ok(
+  !predictProfile(overstating, new Set()).reasons.some(reason => /higher remediation floor applies/.test(reason)),
+  "an overstating archetype must not claim a remediation floor was applied",
+);
+assert.ok(
+  predictProfile(understating, new Set()).reasons.some(reason => /higher remediation floor applies/.test(reason)),
+  "an understating archetype must say why the floor rose",
+);
+
+// A superseded assessment is already set aside, so it must not be double-reported
+// as an archetype mismatch on top of that.
+const superseded = {
+  ...archetypeBase,
+  severity: { assessments: [{ source: "Chrome", role: "assigning-cna", scale: "chromium", value: "Critical", basis: "vendor" }], primary: "Chrome", normalized_band: "critical", normalized_basis: "scale-mapping:chromium:1.0" },
+  ...assessed("standard-remediation", "Scheduled"),
+};
+assert.equal(archetypeMismatch(superseded), null, "a superseded assessment is set aside, not reported twice");
+assert.ok(reviewStatus(superseded).reasons.some(r => r.code === "superseded-assessment"));
 
 console.log("engine tests passed");

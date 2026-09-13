@@ -91,8 +91,49 @@ def short_but_absent_field_citation_does_not_verify():
     assert not sv.verify('"vector": "physical"', RECORD)["verified"]
 
 
+def derivations_are_not_citable_from_the_scorer_view() -> None:
+    """The scorer's view must not make this project's own arithmetic quotable.
+
+    span_verify matches against `json.dumps` of the whole record view, so anything
+    in that view becomes a verifiable citation. Since the vendor-plural migration
+    `severity` carries `normalized_band` and `normalized_basis`, which are our
+    normalisation across vendor scales rather than anything a vendor published.
+    Passing the object whole let the scorer cite `scale-mapping:msrc:1.0` and have
+    the verifier confirm it came from the advisory. `record_view` therefore passes
+    the published assessments only.
+    """
+    import score_tags
+
+    record = {
+        "cve": "CVE-FIXTURE-9",
+        "title": "Windows DNS Server Remote Code Execution Vulnerability",
+        "products": [{"name": "Windows Server 2025"}],
+        "severity": {
+            "assessments": [
+                {"source": "microsoft", "role": "publisher", "scale": "msrc", "value": "Important", "basis": "vendor"},
+                {"source": "Linux", "role": "assigning-cna", "scale": "cvss-qualitative", "value": "CRITICAL",
+                 "basis": "vendor", "url": "https://example.invalid/CVE-FIXTURE-9.json"},
+            ],
+            "primary": "microsoft",
+            "normalized_band": "critical",
+            "normalized_basis": "scale-mapping:cvss-qualitative:1.0",
+            "divergence": {"kind": "assessment", "spread": 4.6},
+        },
+    }
+    view = score_tags.record_view(record)
+
+    for derived in ("scale-mapping:cvss-qualitative:1.0", "normalized_band critical", "divergence assessment spread 4.6"):
+        assert not sv.verify(derived, view)["verified"], f"a derivation must not be citable: {derived}"
+    assert "https://example.invalid/CVE-FIXTURE-9.json" not in __import__("json").dumps(view), "a source URL is a pointer, not evidence"
+
+    # The vendors' own words stay quotable, or the scorer loses real evidence.
+    assert sv.verify('"source": "microsoft", "role": "publisher", "scale": "msrc", "value": "Important"', view)["verified"],         "the publisher's own band must remain citable"
+    assert sv.verify('"source": "Linux", "role": "assigning-cna", "scale": "cvss-qualitative", "value": "CRITICAL"', view)["verified"],         "the assigning CNA's own band must remain citable"
+
+
 CASES = [
     ("real citations verify", real_citations_verify),
+    ("project derivations are not citable from the scorer view", derivations_are_not_citable_from_the_scorer_view),
     ("invented citations do not verify", invented_citations_do_not_verify),
     ("word salad from record vocabulary is rejected", word_salad_from_record_vocabulary_is_rejected),
     ("HTML in the source does not block a match", html_in_the_source_does_not_block_a_match),

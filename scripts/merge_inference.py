@@ -19,7 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from severity import UNKNOWN, normalized_band  # noqa: E402
 
 
 ROOT = Path(__file__).parents[1]
@@ -211,6 +216,32 @@ def critical_pre_auth_network_rce(record: dict) -> bool:
     )
 
 
+def deterministic_baseline_model(record: dict, likelihood_index: int) -> str:
+    """Mirror of `selectBaselineModel` in risk-model.js. Keep the two in step.
+
+    The archetype is not a judgement. Given a record and a likelihood there is
+    exactly one right answer, so a saved `baseline_model` that disagrees is
+    describing some other record. Three of the seven are chosen purely by the
+    severity band, which is why this became reachable only once the band could
+    come from a vendor other than the publisher.
+    """
+    if record.get("customer_action_required") is False:
+        return "no-customer-action"
+    threat = record.get("threat") or {}
+    if threat.get("kev") or threat.get("exploitation_detected"):
+        return "active-exploitation"
+    if critical_pre_auth_network_rce(record) and likelihood_index >= 2:
+        return "critical-preauth-network-rce"
+    band = normalized_band(record.get("severity"))
+    if band == UNKNOWN:
+        return "unknown-severity"
+    if band == "critical":
+        return "critical-technical"
+    if likelihood_index >= 2 and band == "high":
+        return "elevated-high-severity"
+    return "standard-remediation"
+
+
 def public_threat_likelihood(record: dict) -> int:
     """Return the minimum evidence band implied by public, machine-sourced facts."""
     threat = record.get("threat", {})
@@ -274,6 +305,20 @@ def validate_framework_assessment(overlay: dict, baseline: dict) -> None:
         raise ValueError(f"{cve}: Microsoft More Likely cannot be assessed below Elevated")
     if baseline.get("customer_action_required") is not False and likelihood_index < public_threat_likelihood(baseline):
         raise ValueError(f"{cve}: framework likelihood cannot undercut current public threat evidence")
+
+    # The archetype must match the one the record's own facts select. Halting here
+    # rather than warning is deliberate: an assessment naming `critical-technical`
+    # on a record no vendor rated critical is stating something untrue about the
+    # source data, and an administrator reads that label as the reason for the date
+    # they are given. 2026-Sep was merged before this gate existed and has 32
+    # records that would not pass it; they are surfaced in the UI as
+    # `archetype-contradicts-severity` rather than silently corrected.
+    determined = deterministic_baseline_model(baseline, likelihood_index)
+    if assessment["baseline_model"] != determined:
+        raise ValueError(
+            f"{cve}: baseline_model is {assessment['baseline_model']} but severity band "
+            f"{normalized_band(baseline.get('severity'))} at likelihood {assessment['baseline_likelihood']} selects {determined}"
+        )
 
 
 def main() -> None:

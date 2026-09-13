@@ -41,6 +41,17 @@ def main():
         packets = []
         for r in assigned:
             packet = {k:r[k] for k in ("cve","title","severity","customer_action_required","cvss","attack","threat","tags","source")}
+            # The assessor keeps the resolved band: normalising across vendor scales
+            # is deterministic parsing, not policy, and three of the seven baseline
+            # archetypes are chosen by that band alone - an assessor that cannot see
+            # it is being asked to guess the answer the merge gate then checks. It
+            # also needs to see a disagreement rather than only its resolution. The
+            # per-assessment source URL is dropped: a pointer is not evidence, and
+            # nothing in the sandbox can follow it.
+            if isinstance(packet.get("severity"), dict):
+                packet["severity"] = {**packet["severity"], "assessments": [
+                    {k2:v2 for k2,v2 in a.items() if k2 != "url"} for a in packet["severity"].get("assessments") or []
+                ]}
             packet["products"] = sorted({p["name"] for p in r["products"]})
             packet["notes"] = [{"title":n.get("title"),"type":n.get("type"),"text":html.unescape(re.sub("<[^>]+>", " ", n.get("value","")))} for n in r.get("vendor_guidance",{}).get("notes",[])]
             packet["remediations"] = list({json.dumps({k:v for k,v in m.items() if k != "product_ids"},sort_keys=True):{k:v for k,v in m.items() if k != "product_ids"} for m in r.get("vendor_guidance",{}).get("remediations",[])}.values())
