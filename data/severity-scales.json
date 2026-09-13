@@ -1,0 +1,207 @@
+{
+  "version": "1.0",
+  "target_vocabulary": [
+    "critical",
+    "high",
+    "medium",
+    "low"
+  ],
+  "doctrine": {
+    "one_line": "A vendor's own published band is the severity. A CVSS score is never allowed to overrule it.",
+    "why_this_vocabulary": "Critical, High, Medium and Low is what the CVE Program records carry in baseSeverity and what every third-party CNA in the 2026-Sep dataset emits. Microsoft's Important and Moderate, and Adobe's Important, are the outliers. Normalising onto the common vocabulary means a client reading any other tool sees the same words.",
+    "why_not_cvss_derived": "MSRC bands and CVSS bands are different kinds of scale and they disagree. Measured on the 968 Microsoft-assigned 2026-Sep records that carry a Microsoft CVSS score, a naive band-to-band comparison agrees on only 67%: 84 of 131 Microsoft Criticals score in the CVSS High range and 3 score Medium, while 234 of 837 Importants score Medium. Microsoft Critical spans 4.4 to 10.0 and Important spans 3.5 to 8.8, so the bands overlap heavily. Microsoft states its own ratings are not CVSS-derived and that severity is 'distinct from the likelihood of a vulnerability being exploited'. Deriving the band from the score would put this tool in silent disagreement with the vendor on a third of a month.",
+    "precedence": [
+      "1. The publishing vendor's own band, where it published one.",
+      "2. The assigning CNA's own band, where the publisher declined to rate.",
+      "3. A band derived from a CVSS score, only where no party published a band, recorded as normalized_basis 'cvss-derived'.",
+      "4. unknown, where no party published a band and no CVSS score exists."
+    ],
+    "never": [
+      "Derive the band from a score when a vendor published a band, at any confidence.",
+      "Let a third-party enrichment provider's score or band set the normalized band. CISA-ADP is enrichment, not a vendor: on Chromium its CVSS gives one identical 9.6 vector to three different Chromium tiers, and rates a Chromium High at 3.1.",
+      "Resolve an absent band to any value other than unknown."
+    ]
+  },
+  "scales": {
+    "msrc": {
+      "label": "Microsoft",
+      "kind": "definitional",
+      "definition_url": "https://www.microsoft.com/en-us/msrc/security-update-severity-rating-system",
+      "note": "82% of the 2026-Sep dataset. In that month Microsoft used only two of its four bands: 131 Critical and 837 Important. Every Moderate and Low in the dataset came from a third-party CNA, so a filter offering all four bands matches far less Microsoft content than it appears to.",
+      "bands": {
+        "Critical": {
+          "maps_to": "critical",
+          "vendor_definition": "A vulnerability whose exploitation could allow code execution without user interaction.",
+          "rationale": "Code execution with no user interaction is the highest definitional claim on this scale and on every other scale here."
+        },
+        "Important": {
+          "maps_to": "high",
+          "vendor_definition": "A vulnerability whose exploitation could result in compromise of the confidentiality, integrity, or availability of user data, or of the integrity or availability of processing resources.",
+          "rationale": "Real compromise of confidentiality, integrity or availability, but short of unassisted code execution. This is a rename of the same definitional band, not a translation: it matches Chromium High's 'execute code in the context of, or otherwise impersonate other origins' and Mozilla High's cross-origin claim."
+        },
+        "Moderate": {
+          "maps_to": "medium",
+          "vendor_definition": "Impact of the vulnerability is mitigated to a significant degree by factors such as authentication requirements or applicability only to non-default configurations.",
+          "rationale": "Significant mitigating preconditions. The same concept as Chromium Medium's limited or chain-dependent impact."
+        },
+        "Low": {
+          "maps_to": "low",
+          "vendor_definition": "Impact of the vulnerability is comprehensively mitigated by the characteristics of the affected component.",
+          "rationale": "Comprehensively mitigated. Identical concept to Chromium Low's 'extreme mitigating factors'."
+        }
+      }
+    },
+    "chromium": {
+      "label": "Chromium",
+      "kind": "definitional",
+      "definition_url": "https://chromium.googlesource.com/chromium/src/+/main/docs/security/severity-guidelines.md",
+      "note": "Defined relative to the renderer sandbox, and the guidelines mention CVSS zero times. Google's own service levels are 30 days to all users for Critical and 60 for High, so a Chromium Critical is not an emergency even to Google. Severity is the impact axis only; urgency is the action axis and is computed separately. A use-after-free marked 'MiraclePtr Status: PROTECTED' is not treated as a security issue by Google at all.",
+      "bands": {
+        "Critical": {
+          "maps_to": "critical",
+          "vendor_definition": "read or write arbitrary resources ... on the underlying platform, with the user's full privileges",
+          "rationale": "Sandbox escape and full compromise of the user's account, reached from a web page with no authentication. That is code execution without user interaction beyond browsing, which is the MSRC Critical definition."
+        },
+        "High": {
+          "maps_to": "high",
+          "vendor_definition": "execute code in the context of, or otherwise impersonate other origins or read cross-origin data",
+          "rationale": "Genuine confidentiality and integrity loss, constrained inside the sandbox or to other origins. Matches the MSRC Important definition."
+        },
+        "Medium": {
+          "maps_to": "medium",
+          "vendor_definition": "limited read or modify, or harmful only when chained with another issue",
+          "rationale": "Chain-dependent or limited impact is the same claim as MSRC Moderate's significant mitigating factors."
+        },
+        "Low": {
+          "maps_to": "low",
+          "vendor_definition": "bugs that would normally be a higher severity, but which have extreme mitigating factors",
+          "rationale": "Comprehensively mitigated, matching the MSRC Low definition almost word for word."
+        }
+      }
+    },
+    "mozilla": {
+      "label": "Mozilla",
+      "kind": "definitional",
+      "definition_url": "https://www.mozilla.org/en-US/security/advisories/",
+      "note": "Mozilla publishes no CVSS. Across seven 2026 advisories sampled on 12 Sep, the Critical band did not appear once, including on sandbox escapes, so the practical top band for Firefox is High. Advisory-level impact is near-zero-entropy and must not be used; use the per-CVE impact.",
+      "bands": {
+        "Critical": {
+          "maps_to": "critical",
+          "vendor_definition": "Vulnerability can be used to run attacker code and install software, requiring no user interaction beyond normal browsing.",
+          "rationale": "Code execution requiring no user action beyond browsing is the MSRC Critical definition."
+        },
+        "High": {
+          "maps_to": "high",
+          "vendor_definition": "Vulnerability can be used to gather sensitive data from sites in other windows or inject data or code into those sites, requiring no more than normal browsing actions.",
+          "rationale": "A cross-origin data and code-injection claim, the same band as Chromium High and MSRC Important."
+        },
+        "Moderate": {
+          "maps_to": "medium",
+          "vendor_definition": "Vulnerabilities that would otherwise be High or Critical except they only work in uncommon non-default configurations or require the user to perform complicated and/or unlikely steps.",
+          "rationale": "Non-default configuration or unlikely user steps is the MSRC Moderate definition."
+        },
+        "Low": {
+          "maps_to": "low",
+          "vendor_definition": "Minor security vulnerabilities such as Denial of Service attacks, minor data leaks, or spoofs. (Undetectable spoofs of SSL indicia would have 'High' impact because those are generally used to steal sensitive data intended for other sites.)",
+          "rationale": "Minor impact, matching MSRC Low."
+        }
+      }
+    },
+    "adobe": {
+      "label": "Adobe",
+      "kind": "definitional",
+      "definition_url": "https://helpx.adobe.com/security/severity-ratings.html",
+      "note": "Adobe publishes three bands only and no Low, so a Low appearing in a bulletin is an anomaly and must raise a parse error rather than be mapped. Adobe also publishes a separate Priority rating expressing deployment urgency - Priority 1 is exploitation in the wild with installation recommended within 72 hours, Priority 2 is a historically high-risk product with no known exploit and 30 days advised, Priority 3 is left to administrator discretion. That is a different axis, it is the output of Adobe's own risk model over Adobe's telemetry, and it must never enter severity. Adobe does publish its own CVSS, and it diverges from its own severity: within one bulletin, CVE-2026-80159 is Adobe Critical at CVSS 4.0.",
+      "bands": {
+        "Critical": {
+          "maps_to": "critical",
+          "vendor_definition": "A vulnerability, which, if exploited would allow malicious native-code to execute, potentially without a user being aware.",
+          "rationale": "Native code execution potentially without user awareness is the MSRC Critical definition."
+        },
+        "Important": {
+          "maps_to": "high",
+          "vendor_definition": "A vulnerability, which, if exploited would compromise data security, potentially allowing access to confidential data, or could compromise processing resources.",
+          "rationale": "Compromise of data security or processing resources, which is the MSRC Important wording almost exactly."
+        },
+        "Moderate": {
+          "maps_to": "medium",
+          "vendor_definition": "A vulnerability that is limited to a significant degree by factors such as default configuration, auditing, or is difficult to exploit.",
+          "rationale": "Limited by default configuration or exploitation difficulty, which is the MSRC Moderate definition."
+        }
+      }
+    },
+    "cvss-qualitative": {
+      "label": "CVSS qualitative rating",
+      "kind": "numeric-cutoff",
+      "definition_url": "https://www.first.org/cvss/v3.1/specification-document",
+      "note": "This is the band a CNA published itself in the CVE record's baseSeverity field, which makes it a vendor statement and therefore trusted at precedence level 1 or 2. It is identity-mapped because it is already the target vocabulary. It is NOT the same thing as a band this tool computed from a score: that is cvss-score below, and it sits at precedence 3.",
+      "bands": {
+        "CRITICAL": {
+          "maps_to": "critical",
+          "rationale": "Already the target vocabulary."
+        },
+        "HIGH": {
+          "maps_to": "high",
+          "rationale": "Already the target vocabulary."
+        },
+        "MEDIUM": {
+          "maps_to": "medium",
+          "rationale": "Already the target vocabulary."
+        },
+        "LOW": {
+          "maps_to": "low",
+          "rationale": "Already the target vocabulary."
+        },
+        "NONE": {
+          "maps_to": "unknown",
+          "rationale": "A CVSS score of 0.0 asserts no impact, which is not a severity band and is more likely an unscored record than a harmless vulnerability. It resolves to unknown and carries a review flag."
+        }
+      }
+    },
+    "cvss-score": {
+      "label": "Derived from a CVSS base score",
+      "kind": "numeric-cutoff",
+      "definition_url": "https://www.first.org/cvss/v3.1/specification-document",
+      "note": "The fallback of last resort, used only where no party published a band. Always recorded as normalized_basis 'cvss-derived' so it is visibly not a vendor statement. Cutoffs are the CVSS v3.1 qualitative severity ranges.",
+      "ranges": [
+        {
+          "min": 9.0,
+          "max": 10.0,
+          "maps_to": "critical"
+        },
+        {
+          "min": 7.0,
+          "max": 8.9,
+          "maps_to": "high"
+        },
+        {
+          "min": 4.0,
+          "max": 6.9,
+          "maps_to": "medium"
+        },
+        {
+          "min": 0.1,
+          "max": 3.9,
+          "maps_to": "low"
+        },
+        {
+          "min": 0.0,
+          "max": 0.0,
+          "maps_to": "unknown"
+        }
+      ]
+    }
+  },
+  "unknown": {
+    "when": "No party published a band and no CVSS score exists, or the only score is 0.0, or the only band came from a third-party enrichment provider rather than a vendor.",
+    "means": "Nobody has rated this. It is not a low rating and it is not a refusal to translate a foreign scale.",
+    "requires_review": true,
+    "review_reason": "missing-vendor-severity"
+  },
+  "excluded_sources": {
+    "cisa-adp-cvss": "CISA-ADP is an enrichment provider, not a vendor. Its CVSS may be displayed as a labelled annotation but may never set the normalized band. On Chromium it assigns the identical vector CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:H scoring 9.6 to CVE-2026-84353, -84354 and -85047, which Google rates Critical, High and Medium respectively, and it rates CVE-2026-85052 at 3.1 Low where Google rates it High.",
+    "adobe-priority": "Adobe's Priority 1, 2 and 3 is a deployment-urgency axis, not a severity. It belongs beside the computed action as the vendor's recommendation, never in severity.",
+    "ssvc": "CISA SSVC Technical Impact is enrichment and an impact signal, not a vendor severity band. It may be surfaced where no vendor severity exists, as context, but never as the normalized band."
+  },
+  "_definitions_verified": "All vendor_definition strings were fetched from their definition_url and quoted verbatim on 2026-09-13. Four were corrected against the source on that date after being paraphrased from memory; re-verify rather than trusting a paraphrase if these are ever edited."
+}
