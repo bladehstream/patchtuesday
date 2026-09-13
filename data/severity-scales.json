@@ -20,7 +20,20 @@
       "Derive the band from a score when a vendor published a band, at any confidence.",
       "Let a third-party enrichment provider's score or band set the normalized band. CISA-ADP is enrichment, not a vendor: on Chromium its CVSS gives one identical 9.6 vector to three different Chromium tiers, and rates a Chromium High at 3.1.",
       "Resolve an absent band to any value other than unknown."
-    ]
+    ],
+    "divergence": {
+      "rule": "Where more than one party published a band, the normalized band is the highest of them, compared after normalisation on the target vocabulary.",
+      "why": "A lower rating from one party is not evidence against a higher rating from another. Absence of evidence is not evidence of absence, and its sibling here is that one vendor scoring an impact as None does not refute another vendor scoring it as High.",
+      "primary_is_unaffected": "primary names the party whose fix an administrator installs and does not change. Only normalized_band takes the maximum, so 'who publishes the patch' stays separate from 'how bad is it'.",
+      "requires_review": true,
+      "measured_cost_2026_Sep": "Five records have two bands that disagree, all Microsoft against the upstream Linux CNA and all in the same direction. Taking the higher moves all five from medium to high or critical, but only one of them, CVE-2026-80726, changes its action, from Scheduled to Out-of-cycle. The other four land on high, which does not by itself raise the action floor without elevated exploitation likelihood.",
+      "comparison_happens_after_normalisation": "Bands from different scales are only comparable once both have been mapped onto the target vocabulary. Comparing a raw MSRC 'Important' against a raw Chromium 'High' is not defined; comparing the two 'high' values they both map to is."
+    },
+    "not_a_second_opinion": {
+      "rule": "A band from the CVE Program record is a second opinion only when the assigning CNA is a different party from the publishing vendor. Where the publisher assigned its own CVE, its CVE-record CVSS is the same vendor speaking on its other scale, and comparing the two is not a vendor disagreement.",
+      "why": "973 of September's 1185 records are assigned by microsoft, so its CVE-record baseSeverity is Microsoft's own CVSS band. Comparing that against the MSRC band reproduces the 67% MSRC-versus-CVSS gap and reports 332 phantom disagreements. Restricting the comparison to third-party assigners gives the real figure of 5 out of 86.",
+      "field_spelling": "assignerShortName is lowercase 'microsoft' in the CVE Program records, not 'Microsoft'. Compare case-insensitively; an exact-case comparison silently matches nothing and lets all 973 through."
+    }
   },
   "scales": {
     "msrc": {

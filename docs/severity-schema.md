@@ -127,7 +127,11 @@ A Microsoft Critical is more often CVSS High than CVSS Critical. Microsoft state
 
 **`Unknown` still exists and still fails loudly**, but only where nobody has rated the CVE at all - the 91 Linux records where neither party published a band, and Chromium records before the enrichment lands. That is a different state from "rated on a scale we translated", and conflating the two is what the earlier draft got wrong.
 
-**Still open: what the UI shows when two assessments on the same scale disagree.** All five September cases are that kind. Recommendation unchanged: show both, flag for review, and let the higher drive the action floor, because a lower rating from one party is not evidence against a higher rating from another. The cost is that those five kernel CVEs move off Scheduled, which is a real change to what administrators are told.
+**Decided: where two parties published a band, the highest wins.** A lower rating from one party is not evidence against a higher rating from another - the same reasoning as the standing rule that absence of evidence is not evidence of absence. The record is flagged for review and both assessments are shown, so the disagreement is visible rather than resolved silently.
+
+`primary` is unaffected and still names the party whose fix an administrator installs. Only `normalized_band` takes the maximum, which keeps "who publishes the patch" separate from "how bad is it". Comparison happens after normalisation, on the target vocabulary: a raw MSRC "Important" against a raw Chromium "High" is not a defined comparison, but the two `high` values they both map to is.
+
+Measured cost on 2026-Sep, which is smaller than I first said: all five disagreements move from `medium` to `high` or `critical`, but **only one changes its action**. CVE-2026-80726 goes Scheduled to Out-of-cycle, because Linux rates it CRITICAL 9.3 against Microsoft's Moderate. The other four land on `high`, which does not raise the action floor on its own without elevated exploitation likelihood. I had said all five would move off Scheduled; that was wrong, and the distinction matters because the real change to what administrators are told is one record, not five.
 
 ## Migration
 
