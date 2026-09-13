@@ -35,6 +35,9 @@ from pathlib import Path
 
 BASE = "https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves"
 CVE_ID = re.compile(r"^CVE-(\d{4})-(\d+)$")
+# Chrome publishes no CVSS and states its tier in the description instead. Verified on
+# every Chrome-assigned record in 2026-Sep.
+CHROMIUM_TIER = re.compile(r"\((?:Chromium|Chrome) security severity:\s*(\w+)\)", re.IGNORECASE)
 DECISION_POINTS = ("Exploitation", "Automatable", "Technical Impact")
 
 
@@ -57,7 +60,38 @@ def extract(document: dict) -> dict:
         "date_updated": (document.get("cveMetadata") or {}).get("dateUpdated"),
         "ssvc": None,
         "ssvc_provider": None,
+        "vendor_severity": None,
     }
+    # The assigning CNA's own published severity. Captured here so a disagreement with
+    # the publishing vendor is computable from committed data rather than from a local
+    # cache of raw records that is gitignored and exists on one machine. Recorded as the
+    # CNA stated it, on the CNA's own scale, with no mapping applied: normalising is a
+    # separate decision and a separate layer.
+    cna = containers.get("cna") or {}
+    for metric in cna.get("metrics") or []:
+        for key, value in metric.items():
+            if key.startswith("cvssV") and isinstance(value, dict) and result["vendor_severity"] is None:
+                result["vendor_severity"] = {
+                    "band": value.get("baseSeverity"),
+                    "scale": "cvss-qualitative",
+                    "basis": "cna-cvss",
+                    "cvss_version": key.replace("cvssV", "").replace("_", "."),
+                    "base_score": value.get("baseScore"),
+                    "vector": value.get("vectorString"),
+                }
+    if result["vendor_severity"] is None:
+        description = " ".join(item.get("value", "") for item in cna.get("descriptions") or [])
+        tier = CHROMIUM_TIER.search(description)
+        if tier:
+            result["vendor_severity"] = {
+                "band": tier.group(1),
+                "scale": "chromium",
+                "basis": "description-parenthetical",
+                "cvss_version": None,
+                "base_score": None,
+                "vector": None,
+            }
+
     for container in containers.get("adp") or []:
         provider = ((container.get("providerMetadata") or {}).get("shortName"))
         for metric in container.get("metrics") or []:
@@ -130,6 +164,7 @@ def main() -> None:
 
     found = [entry for entry in entries if entry["status"] == "found"]
     with_ssvc = [entry for entry in found if entry.get("ssvc")]
+    with_severity = [entry for entry in found if entry.get("vendor_severity")]
     exploitation = {}
     for entry in with_ssvc:
         value = entry["ssvc"].get("exploitation")
@@ -141,6 +176,7 @@ def main() -> None:
         "not_published": sum(1 for entry in entries if entry["status"] == "not-published"),
         "failed": len(failures),
         "with_ssvc": len(with_ssvc),
+        "with_cna_severity": len(with_severity),
         "ssvc_coverage": round(len(with_ssvc) / len(ordered), 4) if ordered else None,
         "exploitation": exploitation,
         "fetched_at": datetime.now(timezone.utc).isoformat(),

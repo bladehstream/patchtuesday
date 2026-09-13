@@ -55,6 +55,11 @@ def main() -> None:
                 "date_updated": entry.get("date_updated"),
                 "ssvc": ssvc,
                 "ssvc_provider": entry.get("ssvc_provider"),
+                # The assigning CNA's own band, as it stated it, on its own scale. No
+                # mapping is applied: this is the source fact that Phase 1.1 will
+                # normalise, and carrying it here is what makes a publisher-versus-CNA
+                # disagreement computable from the committed dataset.
+                "vendor_severity": entry.get("vendor_severity"),
             }
             if ssvc:
                 applied += 1
