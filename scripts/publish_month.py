@@ -13,6 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 DATA = ROOT / "data"
 MANIFEST = DATA / "months.json"
+MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+
+
+def release_sort_key(item: dict) -> tuple[int, int, bool]:
+    year, month = item["month"].split("-")[:2]
+    return int(year), MONTHS.index(month), not item["month"].endswith("-demo")
 
 
 def main() -> None:
@@ -45,7 +51,8 @@ def main() -> None:
         "record_count": count,
         "published_at": datetime.now(timezone.utc).isoformat(),
     })
-    manifest.sort(key=lambda item: item["month"], reverse=True)
+    # The UI loads the first real release; month abbreviations are not sortable dates.
+    manifest.sort(key=release_sort_key, reverse=True)
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Published {count} records as data/{filename}")
 

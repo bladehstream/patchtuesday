@@ -4,7 +4,7 @@ export const ACTIONS = RISK_MODEL.actionLabels;
 export const LIKELIHOOD = RISK_MODEL.likelihoodLabels;
 export { isCriticalPreAuthNetworkRce, severityBand };
 
-// A saved model assessment reasoned from the publisher's rating. Where the
+// A legacy saved model assessment reasoned from the publisher's rating. Where the
 // normalised band is now governed by someone else - another vendor outranking the
 // publisher, or a band the publisher never gave at all - the premise the model
 // wrote against is gone, and its conclusion is not evidence about the record as
@@ -16,8 +16,22 @@ export { isCriticalPreAuthNetworkRce, severityBand };
 // re-inference, rather than quietly keeping an action computed from a band that
 // no longer holds. This is deliberately not the same state as an assessment that
 // failed schema validation, and it carries its own review reason.
+// Validated monthly assessments instead carry the severity facts they saw.
+const cvssSeverityFacts = cvss => [cvss?.version ?? null, cvss?.base_score ?? null, cvss?.vector ?? null];
+const severityAssessmentFacts = assessments => (assessments || []).map(item => JSON.stringify([
+  item.source, item.role, item.scale, item.value, item.basis, ...cvssSeverityFacts(item.cvss),
+])).sort().join("\n");
+
 export function assessmentSuperseded(record) {
   const severity = record?.severity;
+  const basis = record?.inference?.severity_basis;
+  if (basis && typeof basis === "object") {
+    return !severity || typeof severity !== "object"
+      || ["primary", "normalized_band", "normalized_basis"].some(key => (severity[key] ?? null) !== (basis[key] ?? null))
+      || severityAssessmentFacts(severity.assessments) !== severityAssessmentFacts(basis.assessments)
+      || (basis.normalized_basis === "cvss-derived"
+        && JSON.stringify(cvssSeverityFacts(record.cvss)) !== JSON.stringify(cvssSeverityFacts(basis.derived_cvss)));
+  }
   if (!severity || typeof severity !== "object") return false;
   if (severity.divergence) return true;
   const assessments = severity.assessments || [];
@@ -238,12 +252,23 @@ export function reviewStatus(record) {
     );
   }
   const framework = record.inference?.framework_assessment;
+  if (record.inference?.attack_path?.direction === "unknown" || record.inference?.direction_gate?.status === "unknown") {
+    add("attack-path-unknown", "The advisory does not establish the attack entry path. No mitigation reduction is established.", record.inference?.attack_path?.evidence || "");
+  }
+  const structuredReview = framework?.review_requirement;
+  if (structuredReview?.required && Array.isArray(structuredReview.reasons)) {
+    for (const reason of structuredReview.reasons) {
+      if (typeof reason === "string" && reason.trim()) add("source-assessment-uncertainty", reason);
+    }
+  }
   if (!framework || record.inference?.model === "none") {
     add("missing-assessment", "Obtain an inference assessment for this CVE.");
   } else if (assessmentSuperseded(record)) {
     add(
       "superseded-assessment",
-      "The saved assessment was made against a severity another vendor has since overruled, so it no longer describes this record. Deterministic policy is in force; re-run inference for this CVE.",
+      record.inference?.severity_basis
+        ? "The severity evidence changed after the saved assessment. Deterministic policy is in force; re-run inference for this CVE."
+        : "The saved assessment was made against a severity another vendor has since overruled, so it no longer describes this record. Deterministic policy is in force; re-run inference for this CVE.",
       `normalized_band=${severityBand(record)} basis=${record.severity?.normalized_basis ?? "absent"}`,
     );
   } else if (!frameworkIsUsable(framework)) {

@@ -2,8 +2,13 @@
   {
     "id": "remove_external_exposure",
     "name": "Remove external exposure",
+    "label": "Remove external exposure",
+    "timing_relevant": true,
     "category": "Network prevention",
-    "credit_rule": "Credit only when all public ingress paths to the vulnerable service are removed and verified.",
+    "mechanisms": ["public-ingress-removal"],
+    "stack_group": "network-reachability",
+    "overlap_groups": ["network-reachability", "perimeter-ingress"],
+    "credit_rule": "Assume verified removal of public ingress across the selected scope. An established inbound vulnerable service supports ordinary marginal benefit without proof of actual customer public exposure or internet-origin attackers; internal and permitted peers remain residual. Explicitly internal-only, adjacent-only or outbound-client routes receive no public-ingress benefit. AV:N alone is insufficient.",
     "applies_to_direction": [
       "inbound"
     ],
@@ -12,20 +17,30 @@
   {
     "id": "segmentation_acl",
     "name": "Segmentation and restrictive ACLs",
+    "label": "Segmentation and restrictive ACLs",
+    "timing_relevant": true,
     "category": "Network prevention",
-    "credit_rule": "Credit only when every relevant path, including lateral movement, is blocked and tested.",
+    "mechanisms": ["network-path-restriction", "lateral-path-restriction"],
+    "stack_group": "network-reachability",
+    "overlap_groups": ["network-reachability"],
+    "credit_rule": "Assume restrictive ACLs are verified across the relevant selected network paths. Ordinary credit requires a source-established entry or delivery mechanism whose attacker traffic or peer eligibility is restricted; permitted or compromised peers may remain residual. Marginal benefit does not require total elimination. Distinct internal lateral restriction is not erased by partial overlap with public-ingress removal; the existing engine still applies its frozen combined cap.",
     "applies_to_direction": [
       "inbound",
       "outbound",
-      "local",
       "adjacent"
     ]
   },
   {
     "id": "service_disabled_vendor_guidance",
     "name": "Disable vulnerable service or feature",
+    "label": "Disable vulnerable service or feature",
+    "timing_relevant": true,
     "category": "Vendor-aligned prevention",
-    "credit_rule": "Strong credit requires vendor guidance and confirmation that the vulnerable path is unavailable.",
+    "mechanisms": ["vulnerable-feature-removal"],
+    "stack_group": "exact-path-prevention",
+    "overlap_groups": ["exact-path-prevention"],
+    "verification_requirements": ["vendor-evidence", "control-verification", "relevant-path-coverage"],
+    "credit_rule": "Assess an already disabled service or feature across the selected scope. Ordinary benefit requires a named source-established required service operation or feature, not an optionality claim or vendor recommendation. A bare driver/component name or unspecified local interface alone is insufficient. The verification_requirements list governs strong exact-path claims, not ordinary benefit. Strong exact-path credit requires CVE-specific vendor disablement evidence and covered exploit paths unavailable. A vendor statement that disabled systems are not exploitable is valid; operational undesirability does not erase its benefit. Preserve consumer-specific scope and patch floors.",
     "applies_to_direction": [
       "inbound",
       "outbound",
@@ -36,8 +51,14 @@
   {
     "id": "vendor_workaround",
     "name": "Apply vendor workaround",
+    "label": "Apply vendor workaround",
+    "timing_relevant": true,
     "category": "Vendor-aligned prevention",
-    "credit_rule": "Strong credit requires the exact Microsoft workaround and validation after deployment.",
+    "mechanisms": ["vendor-documented-path-block"],
+    "stack_group": "exact-path-prevention",
+    "overlap_groups": ["exact-path-prevention"],
+    "verification_requirements": ["vendor-evidence", "control-verification", "relevant-path-coverage"],
+    "credit_rule": "Assume the selected workaround is verified across its relevant scope. Credit requires a source-grounded CVE-specific mechanism; unknown prerequisites receive zero. Strong exact-path credit requires the exact cited vendor workaround and unavailable covered exploit paths, not merely a security-update or Known Issue link. Preserve consumer/product scope and patch floors.",
     "applies_to_direction": [
       "inbound",
       "outbound",
@@ -48,19 +69,29 @@
   {
     "id": "exploit_specific_ips",
     "name": "Exploit-specific IPS or NGFW rule",
+    "label": "Exploit-specific IPS or NGFW rule",
+    "timing_relevant": true,
     "category": "Network prevention",
+    "mechanisms": ["exploit-signature-prevention"],
+    "stack_group": "network-inspection",
+    "overlap_groups": ["network-inspection", "exploit-specific-prevention"],
+    "verification_requirements": ["exploit-specific-rule", "prevention-mode", "relevant-path"],
     "credit_rule": "Credit requires a CVE-specific or exploit-specific signature in prevention mode with recent validation.",
     "applies_to_direction": [
       "inbound",
       "outbound",
-      "local",
       "adjacent"
     ]
   },
   {
     "id": "waf_virtual_patch",
     "name": "WAF virtual patch",
+    "label": "WAF virtual patch",
+    "timing_relevant": true,
     "category": "Application prevention",
+    "mechanisms": ["application-request-blocking"],
+    "stack_group": "application-request-inspection",
+    "overlap_groups": ["application-request-inspection", "exploit-specific-prevention"],
     "credit_rule": "Credit requires coverage of the vulnerable route and a tested blocking rule.",
     "applies_to_direction": [
       "inbound"
@@ -70,7 +101,12 @@
   {
     "id": "protocol_hardening",
     "name": "Protocol or feature hardening",
+    "label": "Protocol or feature hardening",
+    "timing_relevant": true,
     "category": "Configuration prevention",
+    "mechanisms": ["exploit-prerequisite-removal"],
+    "stack_group": "configuration-prerequisite",
+    "overlap_groups": ["configuration-prerequisite"],
     "credit_rule": "Credit requires a setting that directly removes an exploit prerequisite.",
     "applies_to_direction": [
       "inbound",
@@ -82,7 +118,12 @@
   {
     "id": "strong_authentication",
     "name": "Strong authentication and access restriction",
+    "label": "Strong authentication and access restriction",
+    "timing_relevant": true,
     "category": "Identity prevention",
+    "mechanisms": ["attacker-eligibility-restriction"],
+    "stack_group": "identity-gating",
+    "overlap_groups": ["identity-gating", "identity-prerequisite"],
     "credit_rule": "Credit only when authentication gates the vulnerable path and bypass routes are excluded.",
     "applies_to_direction": [
       "inbound",
@@ -94,7 +135,12 @@
   {
     "id": "least_privilege_pam",
     "name": "Least privilege and privileged access management",
+    "label": "Least privilege and privileged access management",
+    "timing_relevant": true,
     "category": "Identity containment",
+    "mechanisms": ["required-privilege-removal", "post-exploit-containment"],
+    "stack_group": "identity-prerequisite",
+    "overlap_groups": ["identity-prerequisite"],
     "credit_rule": "Primarily reduces consequence unless the exploit requires privileges that have been removed.",
     "applies_to_direction": [
       "inbound",
@@ -106,7 +152,12 @@
   {
     "id": "application_control",
     "name": "Application control or WDAC",
+    "label": "Application control or WDAC",
+    "timing_relevant": true,
     "category": "Execution containment",
+    "mechanisms": ["untrusted-execution-blocking"],
+    "stack_group": "execution-prevention",
+    "overlap_groups": ["execution-prevention"],
     "credit_rule": "Credit only when the inferred exploit chain depends on starting an untrusted executable or script.",
     "applies_to_direction": [
       "inbound",
@@ -118,7 +169,12 @@
   {
     "id": "attack_surface_reduction",
     "name": "Attack surface reduction rules",
+    "label": "Attack surface reduction rules",
+    "timing_relevant": true,
     "category": "Execution prevention",
+    "mechanisms": ["technique-specific-execution-prevention"],
+    "stack_group": "execution-prevention",
+    "overlap_groups": ["execution-prevention", "exploit-specific-prevention"],
     "credit_rule": "Credit requires a rule that maps to the inferred exploit technique and is enforced.",
     "applies_to_direction": [
       "inbound",
@@ -130,8 +186,14 @@
   {
     "id": "email_web_filtering",
     "name": "Email and web content filtering",
+    "label": "Email and web content filtering",
+    "timing_relevant": true,
     "category": "Delivery prevention",
-    "credit_rule": "Credit applies to user-delivered content only when the relevant file or URL path is blocked.",
+    "mechanisms": ["malicious-content-delivery-blocking"],
+    "stack_group": "content-delivery",
+    "overlap_groups": ["content-delivery"],
+    "credit_rule": "Assume verified restriction of the established mail or browser content-delivery path, not exploit recognition. Ordinary marginal benefit does not require a published malicious URL or signature or elimination of every permitted/compromised sender or destination. Preserve those residuals, require a supported user-content path, and never claim an exact block from generic filtering presence.",
+    "applies_to_route": ["user-delivered-content"],
     "applies_to_direction": [
       "inbound",
       "outbound",
@@ -142,8 +204,14 @@
   {
     "id": "office_protected_view",
     "name": "Office Protected View and macro hardening",
+    "label": "Office Protected View and macro hardening",
+    "timing_relevant": true,
     "category": "Application prevention",
+    "mechanisms": ["office-content-execution-restriction"],
+    "stack_group": "office-execution",
+    "overlap_groups": ["office-execution", "content-delivery"],
     "credit_rule": "Credit applies only to Office exploit paths addressed by the configured policy.",
+    "applies_to_route": ["user-delivered-content"],
     "applies_to_direction": [
       "inbound",
       "outbound",
@@ -154,7 +222,13 @@
   {
     "id": "edr_exploit_prevention",
     "name": "EDR exploit-specific prevention",
+    "label": "EDR exploit-specific prevention",
+    "timing_relevant": true,
     "category": "Endpoint prevention",
+    "mechanisms": ["endpoint-exploit-behavior-blocking"],
+    "stack_group": "endpoint-exploit-prevention",
+    "overlap_groups": ["endpoint-exploit-prevention", "exploit-specific-prevention"],
+    "verification_requirements": ["exploit-specific-prevention-rule", "prevention-mode", "relevant-exploit-behavior"],
     "credit_rule": "Credit requires a tested prevention capability for the specific exploit behavior, not generic EDR presence.",
     "applies_to_direction": [
       "inbound",
@@ -166,7 +240,12 @@
   {
     "id": "edr_detection_response",
     "name": "EDR detection and response coverage",
+    "label": "EDR detection and response coverage",
+    "timing_relevant": false,
     "category": "Detection and response",
+    "mechanisms": ["detection", "incident-response"],
+    "stack_group": "detection-response",
+    "overlap_groups": ["detection-response"],
     "credit_rule": "No likelihood credit by default. This improves detection and response confidence.",
     "applies_to_direction": [
       "inbound",
@@ -178,7 +257,12 @@
   {
     "id": "immutable_backups",
     "name": "Immutable and tested backups",
+    "label": "Immutable and tested backups",
+    "timing_relevant": false,
     "category": "Recovery",
+    "mechanisms": ["recovery"],
+    "stack_group": "recovery",
+    "overlap_groups": ["recovery"],
     "credit_rule": "No likelihood credit. This may reduce availability consequences but not confidentiality or identity compromise.",
     "applies_to_direction": [
       "inbound",
@@ -190,12 +274,18 @@
   {
     "id": "isolation_airgap",
     "name": "Strong isolation or offline enclave",
+    "label": "Strong isolation or offline enclave",
+    "timing_relevant": true,
     "category": "Network prevention",
-    "credit_rule": "Credit requires verified isolation of every relevant ingress and administration path.",
+    "mechanisms": ["complete-path-isolation"],
+    "stack_group": "network-reachability",
+    "overlap_groups": ["network-reachability", "exact-path-prevention"],
+    "credit_rule": "Assume verified isolation of relevant entry/delivery and administration paths across the selected scope. Ordinary credit requires a source-established network mechanism and supported marginal removal of opportunity; permitted peers inside the isolation boundary may remain residual. Later local processing does not erase explicitly established network delivery. Local/physical entry alone receives no network credit. Never an exact vendor path block.",
+    "exact_path_eligible": false,
+    "exact_path_note": "Isolation overlap metadata does not make this control exact-path eligible.",
     "applies_to_direction": [
       "inbound",
       "outbound",
-      "local",
       "adjacent"
     ]
   }

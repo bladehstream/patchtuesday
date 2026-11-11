@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { issuingCna, cveProgramUrl, reviewStatus } from "../engine.js";
+import { assessmentSuperseded, issuingCna, cveProgramUrl, reviewStatus } from "../engine.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "data", "months.json"), "utf8"));
-// The manifest sorts by month descending, which puts "2026-Sep-demo" ahead of the real
-// month. publish_month.py uses that "-demo" suffix to waive its completeness gate, so it
-// is the right discriminator here too.
-const published = manifest.find(item => !String(item.month).endsWith("-demo"));
-assert.ok(published, "the manifest must contain a non-demo month");
+// These assertions describe September's Chrome records and superseded assessments,
+// not the release that happens to be first in the month selector.
+const published = manifest.find(item => item.month === "2026-Sep");
+assert.ok(published, "the manifest must contain the historical September release");
 const records = fs.readFileSync(path.join(root, "data", published.file), "utf8").trim().split(/\r?\n/).map(JSON.parse);
 
 // CVRF note Type 8 is the assigning CNA. Microsoft declines to rate a CVE it did not
@@ -80,7 +79,7 @@ assert.equal(cveProgramUrl(undefined), null);
   assert.equal(status.reasons.some(item => item.code === "third-party-cna"), false);
 }
 
-// Against the published month: every Chrome-CNA record is unrated by Microsoft and
+// Against the September release: every Chrome-CNA record is unrated by Microsoft and
 // every one of them is flagged. If this ever reads zero, the detector has gone blind.
 const chrome = records.filter(record => issuingCna(record) === "Chrome");
 assert.ok(chrome.length > 0, "the published month must contain Chrome-CNA records");
@@ -123,4 +122,33 @@ for (const record of chrome) {
 const thirdParty = records.filter(record => { const cna = issuingCna(record); return cna && cna !== "Microsoft"; });
 assert.ok(thirdParty.length >= chrome.length, "third-party CNAs are not only Chrome");
 
-console.log(`Third-party CNA checks passed: ${chrome.length} Chrome-assigned and ${thirdParty.length} third-party records across ${new Set(records.map(issuingCna).filter(Boolean)).size} CNAs.`);
+// A current monthly assessment already considered the CNA band/disagreement.
+// Retain that evidence flag, but supersede only when the assessed facts change.
+{
+  const severity = { ...band("high"), normalized_band: "critical", normalized_basis: "scale-mapping:chromium:1.0",
+    assessments: [...band("high").assessments,
+      { source: "Chrome", role: "assigning-cna", scale: "chromium", value: "Critical", basis: "vendor" }],
+    divergence: { kind: "scale" },
+  };
+  const severity_basis = structuredClone({ primary: severity.primary, normalized_band: severity.normalized_band,
+    normalized_basis: severity.normalized_basis, assessments: severity.assessments });
+  const fresh = { ...base, severity, inference: { severity_basis, model: "claude-haiku-5-5", framework_assessment: {
+    risk_model_version: "2026.09.1", baseline_model: "critical-technical", baseline_likelihood: "Plausible",
+    baseline_action: "Out-of-cycle", confidence: "medium", factors: {}, risk_communication: {},
+  } } };
+  assert.equal(assessmentSuperseded(fresh), false, "a fresh known disagreement does not supersede the assessment");
+  assert.ok(reviewStatus(fresh).reasons.some(item => item.code === "severity-divergence"));
+  assert.ok(!reviewStatus(fresh).reasons.some(item => item.code === "superseded-assessment"));
+  assert.equal(assessmentSuperseded({ ...fresh, severity: { ...severity, assessments: [...severity.assessments].reverse() } }), false,
+    "reordering the same source facts does not change their basis");
+  const changed = structuredClone(fresh);
+  changed.severity.assessments[0].value = "Moderate";
+  assert.equal(assessmentSuperseded(changed), true, "a source assessment change matters even within the same winning band");
+  assert.ok(reviewStatus(changed).reasons.some(item => item.code === "superseded-assessment"));
+  const cnaOnly = { ...severity, primary: "Chrome", assessments: severity.assessments.slice(1) };
+  assert.equal(assessmentSuperseded({ ...fresh, severity: cnaOnly,
+    inference: { ...fresh.inference, severity_basis: structuredClone(cnaOnly) } }), false, "a fresh CNA-only basis stays usable");
+  assert.equal(assessmentSuperseded({ ...fresh, inference: {} }), true, "legacy divergence still supersedes");
+}
+
+console.log(`September third-party CNA checks passed: ${chrome.length} Chrome-assigned and ${thirdParty.length} third-party records across ${new Set(records.map(issuingCna).filter(Boolean)).size} CNAs.`);

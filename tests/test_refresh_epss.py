@@ -119,8 +119,13 @@ def test_a_missing_manifest_stops_the_run():
 
 def test_the_real_manifest_resolves():
     """Guards against the checked-in manifest drifting away from data/."""
-    paths, warnings = MODULE.published_datasets(Path(__file__).parents[1] / "data")
-    assert [p.name for p in paths] == ["2026-Sep.jsonl"], [p.name for p in paths]
+    data_dir = Path(__file__).parents[1] / "data"
+    manifest = json.loads((data_dir / "months.json").read_text(encoding="utf-8"))
+    expected = [entry["file"] for entry in manifest if not entry.get("synthetic")
+                and not entry["file"].startswith("demo-") and not entry["month"].endswith("-demo")]
+    assert expected, "the manifest must name at least one published release"
+    paths, warnings = MODULE.published_datasets(data_dir)
+    assert [p.name for p in paths] == expected, [p.name for p in paths]
     assert warnings == [], warnings
 
 

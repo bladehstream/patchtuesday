@@ -6,8 +6,8 @@ import { ssvc, reviewStatus, baselineProfile, predictProfile } from "../engine.j
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "data", "months.json"), "utf8"));
-const published = manifest.find(item => !String(item.month).endsWith("-demo"));
-const records = fs.readFileSync(path.join(root, "data", published.file), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+const publishedMonths = manifest.filter(item => !item.synthetic && !item.month.endsWith("-demo") && !item.file.startsWith("demo-"));
+assert.ok(publishedMonths.some(item => item.month === "2026-Sep"), "the historical September SSVC regression must run");
 
 // Severity is a vendor-plural object. The band is what the risk path reads; a
 // bare string resolves to unknown and would flag the record for review, which
@@ -78,16 +78,7 @@ assert.equal(ssvc(base), null, "a record with no enrichment block has no SSVC");
 // version of this test passed against a mutation that forced likelihood to zero on
 // "none" because its baseline was already zero. Stripping the block from real records
 // and requiring an identical profile catches any path, on any value.
-{
-  for (const record of records) {
-    const { cve_program, ...stripped } = record;
-    if (!cve_program) continue;
-    assert.deepEqual(baselineProfile(record), baselineProfile(stripped), `${record.cve}: SSVC reached the deterministic baseline`);
-    assert.deepEqual(predictProfile(record).baseline, predictProfile(stripped).baseline, `${record.cve}: SSVC reached the predicted profile`);
-  }
-}
-
-// The property test above is necessary but not sufficient, and it is worth saying why.
+// The published-record property test below is necessary but not sufficient.
 // baselineProfile takes Math.max of the evidence likelihood and the framework's saved
 // likelihood, so on a record carrying a usable assessment the deterministic floor is
 // masked and a leak into it is unobservable. Three separate mutations that wired SSVC
@@ -104,16 +95,38 @@ assert.equal(ssvc(base), null, "a record with no enrichment block has no SSVC");
   assert.deepEqual(baselineProfile(loud), reference, "SSVC \"active\" must not raise the deterministic floor; KEV does that, because a KEV listing is a fact and SSVC is an assessment");
 }
 
-// Against the published month.
-const enriched = records.filter(record => record.cve_program);
-if (enriched.length) {
-  const withDecision = enriched.filter(record => ssvc(record));
-  assert.ok(withDecision.length / records.length > 0.8, `SSVC coverage collapsed to ${(withDecision.length / records.length * 100).toFixed(1)}%; the enrichment is stale or the fetch failed`);
-  const flagged = records.filter(record => reviewStatus(record).reasons.some(item => item.code === "public-exploit-evidence"));
-  for (const record of flagged) {
-    assert.equal(record.threat?.kev || false, false, `${record.cve} is in KEV and must not also raise public-exploit-evidence`);
+// Check each real release. New CISA snapshots may legitimately carry less
+// SSVC coverage; preserve September's threshold on the historical release only.
+for (const published of publishedMonths) {
+  const records = fs.readFileSync(path.join(root, "data", published.file), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+  assert.equal(records.length, published.record_count, `${published.month}: manifest record count mismatch`);
+  let withDecision = 0;
+  let flagged = 0;
+  for (const record of records) {
+    const { cve_program, ...stripped } = record;
+    if (cve_program !== undefined) {
+      assert.ok(cve_program && typeof cve_program === "object" && !Array.isArray(cve_program), `${record.cve}: invalid CVE Program block`);
+      assert.ok(typeof cve_program.status === "string" && cve_program.status.trim(), `${record.cve}: missing retrieval status`);
+      if (cve_program.ssvc === null) {
+        assert.ok(typeof cve_program.ssvc_absent_reason === "string" && cve_program.ssvc_absent_reason.trim(), `${record.cve}: missing SSVC absence reason`);
+      } else {
+        assert.equal(cve_program.status, "found", `${record.cve}: unretrieved record cannot carry an SSVC decision`);
+        assert.ok(cve_program.ssvc && typeof cve_program.ssvc === "object" && !Array.isArray(cve_program.ssvc) && Object.keys(cve_program.ssvc).length, `${record.cve}: invalid SSVC decision`);
+      }
+      const decision = ssvc(record);
+      assert.deepEqual(decision, cve_program.ssvc, `${record.cve}: SSVC display does not match retrieval status`);
+      if (decision) withDecision += 1;
+      assert.deepEqual(baselineProfile(record), baselineProfile(stripped), `${record.cve}: SSVC reached the deterministic baseline`);
+      assert.deepEqual(predictProfile(record).baseline, predictProfile(stripped).baseline, `${record.cve}: SSVC reached the predicted profile`);
+    }
+    if (reviewStatus(record).reasons.some(item => item.code === "public-exploit-evidence")) {
+      assert.equal(record.threat?.kev || false, false, `${record.cve} is in KEV and must not also raise public-exploit-evidence`);
+      flagged += 1;
+    }
   }
-  console.log(`SSVC checks passed: ${withDecision.length} of ${records.length} records carry a decision, ${flagged.length} raise public exploit evidence.`);
-} else {
-  console.log("SSVC checks passed against fixtures; the published month carries no enrichment block yet.");
+  const coverage = withDecision / records.length;
+  if (published.month === "2026-Sep") {
+    assert.ok(coverage > 0.8, `September SSVC coverage collapsed to ${(coverage * 100).toFixed(1)}%; the enrichment is stale or the fetch failed`);
+  }
+  console.log(`${published.month} SSVC checks passed: ${withDecision} of ${records.length} records (${(coverage * 100).toFixed(1)}%) carry a decision, ${flagged} raise public exploit evidence.`);
 }

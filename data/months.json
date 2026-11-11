@@ -1,10 +1,10 @@
 [
   {
-    "month": "2026-Sep-demo",
-    "label": "September 2026 synthetic demo",
-    "file": "demo-2026-Sep.jsonl",
-    "record_count": 5,
-    "published_at": "2026-09-09T00:00:00Z"
+    "month": "2026-Nov",
+    "label": "2026-Nov",
+    "file": "2026-Nov.jsonl",
+    "record_count": 1342,
+    "published_at": "2026-11-11T00:48:36.262930+00:00"
   },
   {
     "month": "2026-Sep",
@@ -12,5 +12,12 @@
     "file": "2026-Sep.jsonl",
     "record_count": 1185,
     "published_at": "2026-09-10T03:36:58.677252+00:00"
+  },
+  {
+    "month": "2026-Sep-demo",
+    "label": "September 2026 synthetic demo",
+    "file": "demo-2026-Sep.jsonl",
+    "record_count": 5,
+    "published_at": "2026-09-09T00:00:00Z"
   }
 ]
