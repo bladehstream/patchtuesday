@@ -62,6 +62,10 @@ Use for Important vulnerabilities with Elevated threat likelihood. Baseline acti
 
 Use when none of the higher archetypes apply. Baseline action is Scheduled. Defer requires explicit non-applicability, Microsoft no-action guidance, or a separately governed exception.
 
+### Unknown severity
+
+Use when neither published vendor severity nor usable CVSS exists: Scheduled is a reviewable placeholder, not Low risk; likelihood acknowledges missing evidence and structured Further review is mandatory.
+
 ## Mitigation credit
 
 - Ordinary preventive controls can reduce likelihood by at most one band.
@@ -79,7 +83,7 @@ For every reviewed CVE, the assessor must return:
 
 - Exact `cvss_basis` copied from the normalized Microsoft record
 - `risk_model_version` equal to `2026.09.1`
-- `baseline_model` selected from the six archetypes above
+- `baseline_model` selected from the seven archetypes above
 - `baseline_likelihood` and `baseline_action` using the accepted vocabulary and respecting evidence floors, with an independent explanation of the chosen priority
 - A `factors` assessment covering applicability, threat evidence, exploitability, technical impact, workload context, remediation context and uncertainty
 - Evidence-grounded mitigation candidates

@@ -68,6 +68,23 @@ def extract(document: dict) -> dict:
     # CNA stated it, on the CNA's own scale, with no mapping applied: normalising is a
     # separate decision and a separate layer.
     cna = containers.get("cna") or {}
+    # The CNA's own description, weakness, references and affected versions.
+    # Microsoft republishes third-party CVEs (Chromium for Edge, curl, OpenSSL,
+    # Go and others it ships) with boilerplate and no CVSS; this is the real
+    # text. Kept for every record so consumers need no special case. Reference
+    # kinds are stored as "kinds": cvelistV5 calls them "tags", and that name
+    # is reserved for the enrichment field an assessor view must never carry.
+    result["cna"] = {
+        "description": " ".join(item.get("value", "") for item in cna.get("descriptions") or []
+                                if str(item.get("lang", "en")).startswith("en")).strip() or None,
+        "problem_types": [d.get("description") for p in cna.get("problemTypes") or []
+                          for d in p.get("descriptions") or [] if d.get("description")],
+        "references": [{"url": r.get("url"), "kinds": r.get("tags") or []} for r in cna.get("references") or [] if r.get("url")],
+        "affected": [{"vendor": a.get("vendor"), "product": a.get("product"),
+                      "versions": [{"version": v.get("version"), "status": v.get("status"), "lessThan": v.get("lessThan")}
+                                   for v in a.get("versions") or []][:6]}
+                     for a in cna.get("affected") or []][:6],
+    }
     for metric in cna.get("metrics") or []:
         for key, value in metric.items():
             if key.startswith("cvssV") and isinstance(value, dict) and result["vendor_severity"] is None:

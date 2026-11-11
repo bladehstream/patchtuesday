@@ -60,6 +60,10 @@ def main() -> None:
                 # normalise, and carrying it here is what makes a publisher-versus-CNA
                 # disagreement computable from the committed dataset.
                 "vendor_severity": entry.get("vendor_severity"),
+                # The assigning CNA's description, weakness, references and affected
+                # versions, as published. For republished third-party CVEs this is
+                # the only substantive text there is.
+                "cna": entry.get("cna"),
             }
             if ssvc:
                 applied += 1

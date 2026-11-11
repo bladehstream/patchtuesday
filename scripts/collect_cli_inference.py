@@ -32,6 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import merge_inference as validation  # noqa: E402
+import run_cli_inference as monthly  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,7 +65,8 @@ def verify_run_source(run_dir: Path, manifest: dict, fallback: Path) -> None:
         if not candidate.is_file():
             raise SystemExit(f"{run_dir}: source records {records_path} are gone; cannot verify the run against them")
         records_path = candidate
-    if sha256_bytes(records_path.read_text(encoding="utf-8").encode("utf-8")) != manifest["source_records_sha256"]:
+    content = records_path.read_bytes() if manifest.get("adapter_version") == monthly.ADAPTER_VERSION else records_path.read_text(encoding="utf-8").encode("utf-8")
+    if sha256_bytes(content) != manifest["source_records_sha256"]:
         raise SystemExit(
             f"{run_dir}: {records_path} does not match the records this run was launched against. "
             "Either the wrong month was passed, or the source changed mid-run; reconcile before collecting."
@@ -88,12 +90,17 @@ def validate_overlay(overlay: dict, baseline: dict, tags_allowed: set, controls_
 
 def provenance(manifest: dict, call: dict, label: str, response_hash: str) -> dict:
     return {
+        "model": manifest["model_configured"],
         "model_configured": manifest["model_configured"],
         # Asserted only where the CLI reported it. Never guessed: the serving model
         # can differ from the configured one.
         "model_served": call.get("model_served"),
         "provider": call.get("provider"),
         "arm": manifest["arm"],
+        "assessment_status": "model-assessed",
+        "independent_review_status": "not-claimed",
+        "guidance_version": manifest.get("guidance_version", manifest.get("adapter_version")),
+        "effort_configured": manifest.get("effort_configured"),
         "taxonomy_version": "1.0",
         "generated_at": call["finished_at"],
         "invocation": {
@@ -124,6 +131,26 @@ def collect_batch(run_dir: Path, manifest: dict, call: dict, label: str,
     if response_hash != call["response_sha256"]:
         raise ValueError("response file does not match the hash recorded at call time")
 
+    if manifest.get("adapter_version") == monthly.ADAPTER_VERSION:
+        from jsonschema import Draft202012Validator
+        schema_path = run_dir / f"schema-{call['batch']:03d}.json"
+        prompt_path = run_dir / f"prompt-{call['batch']:03d}.txt"
+        raw_path = run_dir / f"stream-{call['batch']:03d}.ndjson"
+        for path, expected in ((schema_path, call["schema_sha256"]), (prompt_path, call["prompt_sha256"]),
+                               (run_dir / "system-prompt.txt", call["system_prompt_sha256"]),
+                               (raw_path, call["stream_sha256"])):
+            if sha256_bytes(path.read_bytes()) != expected:
+                raise ValueError(f"{path.name} does not match the captured call")
+        analysis = monthly.analyze_transport(raw_path.read_bytes(), call["returncode"],
+                                             manifest["schema_enforced"], manifest["model_configured"])
+        if analysis["errors"]:
+            raise ValueError("raw stream failed validation: " + "; ".join(analysis["errors"]))
+        envelope = monthly.terminal_envelope(raw_path.read_bytes())
+        if json.loads(response_path.read_text(encoding="utf-8")) != envelope:
+            raise ValueError("response envelope differs from captured stream result")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        Draft202012Validator(schema).validate(analysis["response"])
+
     authored = response_assessments(response_path)
     if not isinstance(authored, list):
         raise ValueError("no assessments array in the captured response")
@@ -142,6 +169,8 @@ def collect_batch(run_dir: Path, manifest: dict, call: dict, label: str,
         if cve in seen:
             raise ValueError(f"{cve}: duplicate across batches")
         validate_overlay(overlay, baseline[cve], tags_allowed, controls_allowed)
+        if manifest.get("adapter_version") == monthly.ADAPTER_VERSION:
+            monthly.validate_monthly_overlay(overlay, baseline[cve], tags_allowed, controls_allowed)
 
     # Nothing is admitted until every record in the batch has passed, so a batch
     # cannot be half-collected.
@@ -158,11 +187,16 @@ def main() -> None:
     parser.add_argument("--baseline", required=True, type=Path,
                         help="The enriched month the run was launched against")
     parser.add_argument("--output", type=Path, help="Overlay JSONL for merge_inference --inference")
+    parser.add_argument("--allow-retried-batches", action="store_true",
+                        help="Permit recorded failed batches only when every assigned CVE has a separately validated assessment and total coverage is exact")
     parser.add_argument("--taxonomy", type=Path, default=ROOT / "data" / "tag-taxonomy.json")
     parser.add_argument("--mitigations", type=Path, default=ROOT / "data" / "mitigation-catalog.json")
     args = parser.parse_args()
 
-    baseline = {record["cve"]: record for record in validation.read_jsonl(args.baseline)}
+    baseline_rows = validation.read_jsonl(args.baseline)
+    baseline = {record["cve"]: record for record in baseline_rows}
+    if len(baseline) != len(baseline_rows):
+        raise SystemExit("Refusing duplicate CVEs in the source baseline")
     tags_allowed = validation.allowed_tags(args.taxonomy)
     controls_allowed = validation.allowed_mitigations(args.mitigations)
 
@@ -178,7 +212,8 @@ def main() -> None:
             label = f"{run_dir.name}/batch-{call['batch']:03d}"
             if not call.get("conformant"):
                 # Recorded as a gap, never repaired. Measure 1 lives in the run manifest.
-                skipped.append({"batch": label, "reason": call.get("conformance_failure", "non-conformant")})
+                skipped.append({"batch": label, "reason": call.get("conformance_failure", "non-conformant"),
+                                "cves": call.get("cves")})
                 continue
             try:
                 collected.extend(collect_batch(run_dir, manifest, call, label, baseline,
@@ -187,17 +222,25 @@ def main() -> None:
                 errors.append({"batch": label, "error": str(error)})
 
     missing = sorted(set(baseline) - seen)
+    exact_coverage = not missing and seen == set(baseline) and len(collected) == len(baseline)
+    covered_skips = bool(skipped and args.allow_retried_batches and not errors and exact_coverage and all(
+        isinstance(item["cves"], list) and item["cves"]
+        and all(isinstance(cve, str) and cve in seen for cve in item["cves"])
+        and len(set(item["cves"])) == len(item["cves"])
+        for item in skipped
+    ))
     report = {
         "expected": len(baseline),
         "validated": len(collected),
         "missing_cves": len(missing),
         "skipped_batches": skipped,
+        "skipped_batches_covered_by_validated_assessments": len(skipped) if covered_skips else 0,
         "errors": errors,
     }
     print(json.dumps(report, indent=2))
 
     if args.output:
-        if errors or skipped or missing:
+        if errors or not exact_coverage or (skipped and not covered_skips):
             raise SystemExit("Refusing to write an incomplete inference release")
         collected.sort(key=lambda item: item["cve"])
         args.output.parent.mkdir(parents=True, exist_ok=True)

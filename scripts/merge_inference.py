@@ -52,7 +52,7 @@ def read_jsonl(path: Path) -> list[dict]:
     return output
 
 
-ATTACK_DIRECTIONS = ["inbound", "outbound", "local", "adjacent"]
+ATTACK_DIRECTIONS = ["inbound", "outbound", "local", "adjacent", "unknown"]
 
 
 def direction_rules(path: Path) -> dict[str, list[str]]:
@@ -78,9 +78,9 @@ def enforce_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> l
     surface the contradiction for review, leaving the record with LESS credit than
     the model claimed rather than none at all.
 
-    A missing or invalid direction is different and still raises: without a
-    direction there is nothing to check any control against, so the assessment
-    cannot be validated at all.
+    A missing or invalid direction still raises. Explicit unknown is retained as
+    uncertainty and cannot grant any reduction; it is not a fictitious local
+    classification or a direction-checked clean record.
 
     Returns the list of violations, each already zeroed in place.
     """
@@ -92,11 +92,12 @@ def enforce_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> l
     violations = []
     for candidate in overlay.get("mitigation_candidates") or []:
         effect = candidate.get("effect") or {}
-        credited = (effect.get("likelihood_steps") or 0) > 0 or effect.get("path_block")
+        credited = ((effect.get("likelihood_steps") or 0) > 0 or effect.get("path_block")
+                    or (direction == "unknown" and (effect.get("consequence_steps") or 0) > 0))
         if not credited:
             continue
         allowed = rules.get(candidate.get("id"), list(ATTACK_DIRECTIONS))
-        if direction in allowed:
+        if direction != "unknown" and direction in allowed:
             continue
         violations.append({
             "code": "direction-contradiction",
@@ -114,6 +115,8 @@ def enforce_direction(cve: str, overlay: dict, rules: dict[str, list[str]]) -> l
             ),
         })
         effect["likelihood_steps"] = 0
+        if direction == "unknown":
+            effect["consequence_steps"] = 0
         effect["path_block"] = False
         candidate["relevance"] = "not-relevant"
         candidate["direction_override"] = True
@@ -389,8 +392,10 @@ def main() -> None:
             gate = {"status": "unchecked", "reason": str(error)}
             direction_unchecked.append({"cve": cve, "reason": str(error)})
         else:
-            gate = {"status": "violations-found" if violations else "clean",
-                    "violations": violations}
+            gate = {"status": "unknown" if (overlay.get("attack_path") or {}).get("direction") == "unknown"
+                    else "violations-found" if violations else "clean", "violations": violations}
+            if gate["status"] == "unknown":
+                gate["reason"] = "The source does not establish entry direction; mitigation reductions are not established."
             if violations:
                 direction_violations.append({"cve": cve, "violations": violations})
 
@@ -402,6 +407,7 @@ def main() -> None:
         record["inference"] = overlay.get("inference") or {}
         record["inference"]["review_status"] = "reviewed"
         record["inference"]["framework_assessment"] = overlay["framework_assessment"]
+        record["inference"]["attack_path"] = overlay.get("attack_path")
         # Written on every merged record, including the clean ones. A field that
         # appears only on violations cannot be distinguished from a gate that never
         # ran - which is the state this whole change is fixing.
@@ -411,6 +417,27 @@ def main() -> None:
     if args.require_complete and seen != set(baseline):
         missing = sorted(set(baseline) - seen)
         raise ValueError(f"Incomplete inference: {len(seen)}/{len(baseline)} CVEs reviewed; missing {missing[:10]}")
+
+    if args.require_complete:
+        for record in merged:
+            inference = record["inference"]
+            severity = record.get("severity")
+            if (not isinstance(severity, dict)
+                    or inference.get("assessment_status") != "model-assessed"
+                    or not str(inference.get("guidance_version") or "").startswith("monthly-")
+                    or (inference.get("pipeline_validation") or {}).get("type") != "automated-source-and-schema"
+                    or (inference.get("invocation") or {}).get("schema_enforced") is not True):
+                continue
+            # Pin the facts used for this complete, validated monthly merge.
+            # A pre-existing vendor disagreement is not a later source change.
+            basis = {key: severity.get(key) for key in ("primary", "normalized_band", "normalized_basis")}
+            basis["assessments"] = [
+                {key: item[key] for key in ("source", "role", "scale", "value", "basis", "cvss") if key in item}
+                for item in severity.get("assessments") or []
+            ]
+            if basis["normalized_basis"] == "cvss-derived":
+                basis["derived_cvss"] = {key: (record.get("cvss") or {}).get(key) for key in ("version", "base_score", "vector")}
+            inference["severity_basis"] = basis
 
     if args.include_unreviewed:
         for cve, record in baseline.items():

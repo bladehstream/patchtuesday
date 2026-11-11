@@ -398,6 +398,8 @@ def build_records(
                 "kev": cve in kev,
                 "exploitation_detected": "exploitation detected" in exploit_text.lower(),
                 "exploitation_assessment": exploitation_assessment(exploit_text),
+                "publicly_disclosed": (None if not threat_description(vuln, "1")
+                                       else "publicly disclosed:yes" in threat_description(vuln, "1").lower()),
                 "epss": epss.get(cve),
             },
             "mitigation_candidates": as_list(overlay.get("mitigation_candidates")),
