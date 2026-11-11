@@ -10,7 +10,7 @@ const dist = path.join(root, "dist");
 console.log("Inference coverage:", validateCoverage(path.join(root, "data")));
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
-for (const name of ["index.html", "styles.css", "app.js", "engine.js", "risk-model.js", "_headers"]) {
+for (const name of ["index.html", "styles.css", "app.js", "advisory-view.js", "engine.js", "risk-model.js", "_headers"]) {
   fs.copyFileSync(path.join(root, name), path.join(dist, name));
 }
 fs.cpSync(path.join(root, "data"), path.join(dist, "data"), { recursive: true });

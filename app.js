@@ -1,6 +1,7 @@
 import { ACTIONS, severityBand, updateSummary, exportJsonl, formatEpss, formatMicrosoftAssessment, formatPriority, formatPriorityText, monthTotals, overviewBoard, publicProfile, recordFilterTags, reviewStatus, isCriticalPreAuthNetworkRce, matchesSmartSearch, parseJsonl, predictProfile, worstFirst } from "./engine.js?v=2026.09.severity";
+import { nextAdvisorySort, sortAdvisories, microsoftSourceHtml } from "./advisory-view.js?v=2026.11.ui";
 
-const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "", view: "overview" };
+const state = { records: [], recordByCve: new Map(), catalog: [], productFilters: null, selectedProducts: new Set(), productMatchMode: "or", selectedMitigations: new Set(), selectedCve: null, searchQuery: "", view: "overview", advisorySort: null };
 const $ = id => document.getElementById(id);
 
 async function loadCatalog() {
@@ -433,7 +434,8 @@ function render() {
   // advisory list is on screen put that cost on every search keystroke, so it is
   // built when the overview is visible and refreshed by setView on the way in.
   if (state.view === "overview") renderOverview();
-  const records = filteredRecords();
+  const records = sortAdvisories(filteredRecords(), state.advisorySort, state.selectedMitigations);
+  updateSortHeadings();
   const body = $("results-body");
   if (!records.some(record => record.cve === state.selectedCve)) state.selectedCve = records[0]?.cve || null;
   body.innerHTML = records.map(record => {
@@ -523,6 +525,8 @@ function renderDetail() {
     <h2>${escapeHtml(record.cve)}</h2>
     <p class="detail-meta">${severityHtml(record)} · ${escapeHtml(record.attack.vector)} · ${escapeHtml(record.month)}</p>
     <p>${escapeHtml(record.title)}</p>
+    ${microsoftSourceHtml(record)}
+    <section class="assessment-summary" aria-label="Assessment summary"><h3>Assessment summary</h3><p>${escapeHtml(formatPriorityText(riskInterpretation(record, profile)))}</p></section>
     ${reviewSectionHtml(record.review)}
     <h3>1 &middot; What is affected</h3>
     ${(() => {
@@ -571,6 +575,25 @@ function renderDetail() {
 
 function catalogName(id) { return state.catalog.find(item => item.id === id)?.name || id; }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]); }
+
+function updateSortHeadings() {
+  for (const button of document.querySelectorAll("button[data-advisory-sort]")) {
+    const key = button.dataset.advisorySort;
+    const active = state.advisorySort?.key === key;
+    const direction = active ? state.advisorySort.direction : key === "cve" ? "asc" : "desc";
+    button.closest("th").setAttribute("aria-sort", active ? direction === "asc" ? "ascending" : "descending" : "none");
+    button.querySelector(".sort-indicator").textContent = active ? direction === "asc" ? "▲" : "▼" : "↕";
+    const next = active ? direction === "asc" ? "descending" : "ascending" : direction === "asc" ? "ascending" : "descending";
+    button.setAttribute("aria-label", `Sort by ${button.dataset.sortLabel}, ${next}`);
+  }
+}
+
+for (const button of document.querySelectorAll("button[data-advisory-sort]")) {
+  button.addEventListener("click", () => {
+    state.advisorySort = nextAdvisorySort(state.advisorySort, button.dataset.advisorySort);
+    render();
+  });
+}
 
 async function loadText(text) {
   try {

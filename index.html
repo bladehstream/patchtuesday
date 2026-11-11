@@ -6,7 +6,7 @@
     <meta name="description" content="Local-first Microsoft Patch Tuesday triage using enriched monthly JSONL data." />
     <title>Patch Tuesday Triage</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=2026.09.severity" />
+    <link rel="stylesheet" href="./styles.css?v=2026.11.ui" />
   </head>
   <body>
     <header class="app-header">
@@ -156,12 +156,12 @@
           <table>
             <thead>
               <tr>
-                <th scope="col">CVE</th>
+                <th scope="col" aria-sort="none"><button type="button" class="sort-heading" data-advisory-sort="cve" data-sort-label="CVE" aria-label="Sort by CVE, ascending">CVE <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
                 <th scope="col">Vulnerability</th>
                 <th scope="col">Selected scope</th>
-                <th scope="col">Threat</th>
-                <th scope="col">Baseline</th>
-                <th scope="col">Predicted profile</th>
+                <th scope="col" aria-sort="none"><button type="button" class="sort-heading" data-advisory-sort="threat" data-sort-label="Threat" aria-label="Sort by Threat, descending" title="Sort by assessed exploitation likelihood, then EPSS and CVSS">Threat <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+                <th scope="col" aria-sort="none"><button type="button" class="sort-heading" data-advisory-sort="baseline" data-sort-label="Baseline" aria-label="Sort by Baseline, descending">Baseline <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+                <th scope="col" aria-sort="none"><button type="button" class="sort-heading" data-advisory-sort="predicted" data-sort-label="Predicted profile" aria-label="Sort by Predicted profile, descending">Predicted profile <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
               </tr>
             </thead>
             <tbody id="results-body"></tbody>
@@ -175,6 +175,6 @@
       </aside>
     </main>
 
-    <script type="module" src="./app.js?v=2026.09.severity"></script>
+    <script type="module" src="./app.js?v=2026.11.ui"></script>
   </body>
 </html>

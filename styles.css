@@ -155,6 +155,11 @@ th:nth-child(3) { width: 18%; }
 th:nth-child(4) { width: 16%; }
 th:nth-child(5), th:nth-child(6) { width: 11%; }
 th { position: sticky; top: 0; z-index: 1; background: #f3f2f1; color: #323130; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.035em; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-strong); }
+.sort-heading { display: inline-flex; align-items: center; gap: 5px; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.sort-heading:hover { color: var(--accent); background: transparent; }
+.sort-heading:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.sort-indicator { flex: none; color: var(--muted); font-size: 0.7rem; }
+th[aria-sort="ascending"] .sort-indicator, th[aria-sort="descending"] .sort-indicator { color: var(--accent); }
 td { padding: 12px; border-bottom: 1px solid #edebe9; vertical-align: top; font-size: 0.88rem; line-height: 1.35; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: #f5f9fd; }
@@ -198,6 +203,18 @@ tbody tr[aria-selected="true"] { background: #deecf9; box-shadow: inset 3px 0 va
 .detail-panel h3 { margin: 22px 0 8px; font-size: 0.92rem; }
 .detail-panel p { line-height: 1.45; }
 .detail-meta { margin: 0; color: var(--muted); font-size: 0.84rem; }
+.msrc-source { margin: 16px 0; padding-top: 1px; border-top: 1px solid var(--line); }
+.msrc-source h3 { margin-top: 15px; }
+.source-text { white-space: pre-line; overflow-wrap: anywhere; font-size: 0.85rem; line-height: 1.5; }
+.msrc-faq + .msrc-faq { margin-top: 13px; }
+.msrc-faq h4 { margin: 0 0 5px; font-size: 0.84rem; line-height: 1.4; }
+.source-attribution { color: var(--muted); font-size: 0.75rem; }
+.source-attribution a { color: var(--accent); }
+.source-faq-details summary { cursor: pointer; color: var(--accent); font-size: 0.84rem; line-height: 1.4; }
+.source-faq-details[open] summary { margin-bottom: 12px; }
+.assessment-summary { margin: 15px 0; padding-left: 10px; border-left: 3px solid var(--accent); }
+.assessment-summary h3 { margin: 0 0 6px; }
+.assessment-summary p { margin: 0; font-size: 0.85rem; }
 .risk-breakdown { display: grid; grid-template-columns: minmax(105px, 0.75fr) minmax(0, 1.45fr); gap: 7px 10px; margin: 0; font-size: 0.8rem; line-height: 1.35; }
 .risk-breakdown dt { color: var(--muted); }
 .risk-breakdown dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
